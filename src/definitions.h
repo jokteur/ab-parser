@@ -75,6 +75,7 @@ namespace AB {
     };
 
     const char* block_to_name(BLOCK_TYPE type);
+    const char* block_to_html(BLOCK_TYPE type);
     const char* span_to_name(SPAN_TYPE type);
     const char* text_to_name(TEXT_TYPE type);
 }

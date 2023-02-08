@@ -262,8 +262,8 @@ namespace AB {
                     // But we want this to be counted towards the indent for the LI
                     // In case whitespace_counter < indent, then we reset like before after the loop
                     corrected_above_quote = above_container->parent->parent;
-                    auto& bounds = corrected_above_quote->content_boundaries.end() - 1;
-                    bounds->beg--;
+                    auto bounds = corrected_above_quote->content_boundaries.back();
+                    bounds.beg--;
                     seg->start--;
                     whitespace_counter++;
                 }
@@ -408,8 +408,8 @@ namespace AB {
             seg->start++;
             seg->b_bounds.pre++;
             seg->b_bounds.beg++;
-            auto& bounds = corrected_above_quote->content_boundaries.end() - 1;
-            bounds->beg++;
+            auto bounds = corrected_above_quote->content_boundaries.back();
+            bounds.beg++;
         }
 
         // If potential list has been detected, verify if the enumeration makes sense
@@ -589,7 +589,7 @@ namespace AB {
         ContainerPtr& above_container = ctx->above_container;
 
         if (seg->line_number == 2) {
-            std::cout << std::endl;
+            // std::cout << std::endl;
         }
 
         if (above_container != nullptr) {
@@ -683,7 +683,7 @@ namespace AB {
         for (auto child : ptr->children) {
             CHECK_AND_RET(enter_block(ctx, child));
         }
-        CHECK_AND_RET(ctx->parser->leave_block());
+        CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
         return ret;
     abort:
         return ret;

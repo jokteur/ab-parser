@@ -73,15 +73,16 @@ namespace AB {
     };
 
     typedef std::function<bool(BLOCK_TYPE type, const std::vector<Boundaries>& bounds, std::shared_ptr<BlockDetail> detail)> BlockFct;
+    typedef std::function<bool(BLOCK_TYPE type)> LeaveBlockFct;
     typedef std::function<bool(SPAN_TYPE type, const Boundaries& bounds, std::shared_ptr<SpanDetail> detail)> SpanFct;
-    typedef std::function<bool()> LeaveFct;
+    typedef std::function<bool(SPAN_TYPE type)> LeaveSpanFct;
     typedef std::function<bool(TEXT_TYPE type, const OFFSET begin, const OFFSET end)> TextFct;
 
     struct Parser {
         BlockFct enter_block;
-        LeaveFct leave_block;
+        LeaveBlockFct leave_block;
         SpanFct enter_span;
-        LeaveFct leave_span;
+        LeaveSpanFct leave_span;
         TextFct text;
     };
 

@@ -38,6 +38,43 @@ namespace AB {
         };
         return "";
     }
+    const char* block_to_html(BLOCK_TYPE type) {
+        switch (type) {
+        case BLOCK_DOC:
+            return "doc";
+        case BLOCK_QUOTE:
+            return "blockquote";
+        case BLOCK_HIDDEN:
+            return "hidden";
+        case BLOCK_UL:
+            return "ul";
+        case BLOCK_OL:
+            return "ol";
+        case BLOCK_LI:
+            return "li";
+        case BLOCK_HR:
+            return "hr";
+        case BLOCK_H:
+            return "h";
+        case BLOCK_CODE:
+            return "code";
+        case BLOCK_P:
+            return "p";
+        case BLOCK_TABLE:
+            return "table";
+        case BLOCK_THEAD:
+            return "thead";
+        case BLOCK_TBODY:
+            return "tbody";
+        case BLOCK_TR:
+            return "tr";
+        case BLOCK_TH:
+            return "th";
+        case BLOCK_TD:
+            return "td;";
+        };
+        return "";
+    }
     const char* span_to_name(SPAN_TYPE type) {
         switch (type) {
         case SPAN_EM:
