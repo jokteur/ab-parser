@@ -288,7 +288,7 @@ namespace AB {
             else if (CH(off) == '\\') {
                 if (off == seg->start) {
                     // Paragraph
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
                 else
@@ -309,7 +309,7 @@ namespace AB {
                     break;
                 }
                 else {
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
             }
@@ -322,7 +322,7 @@ namespace AB {
                 }
                 else {
                     // Paragraph
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
             }
@@ -344,7 +344,7 @@ namespace AB {
                 }
                 else {
                     // Paragraph
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
             }
@@ -360,7 +360,7 @@ namespace AB {
             else if (CH(off) == '(') {
                 if (seg->flags & LIST_OPENER || !CHECK_WS_BEFORE(off)) {
                     // Paragraph
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
                 b_solved = PARTIAL;
@@ -388,16 +388,17 @@ namespace AB {
                     break;
                 }
                 else {
-                    analyse_make_p(ctx, off, &this_segment_end, seg);
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
             }
             // Any other char will be treated as the beginning of a paragraph
             // as long we are not in the text of a definition
             else if (!(seg->flags & (DEFINITION_OPENER | LIST_OPENER))) {
-                analyse_make_p(ctx, off, &this_segment_end, seg);
+                analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                 break;
             }
+
 
             next_utf8_char(&off);
         }
@@ -520,9 +521,9 @@ namespace AB {
             if (detail->pre_marker != pre_marker || detail->post_marker != post_marker)
                 make_new_list = true;
 
-            // By default, we choose the enumeration type of the one that is lowest in decimal
-            // However, if we are already in a list that is either alpha or roman, then the 
-            // current list item must inherit the alpha or roman property 
+            /* By default, we choose the enumeration type of the one that is lowest in decimal
+             * However, if we are already in a list that is either alpha or roman, then the
+             * current list item must inherit the alpha or roman property */
             if (type != BlockOlDetail::OL_NUMERIC) {
                 if (detail->type == BlockOlDetail::OL_ALPHABETIC && roman > 0 && alpha > 0)
                     type = BlockOlDetail::OL_ALPHABETIC;
@@ -536,7 +537,7 @@ namespace AB {
             make_new_list = true;
         }
 
-        // Close previous list item (LI)
+        /* Close previous list item (LI) */
         if (is_above_ul || is_above_ol) {
             for (auto ptr : above_container->children) {
                 ptr->closed = true;
@@ -608,7 +609,7 @@ namespace AB {
             ctx->above_container = nullptr;
         }
 
-#define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type) 
+#define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
         // Blank lines depend on the future, so we have to temporarily store them
         if (seg->blank_line) {
