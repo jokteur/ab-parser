@@ -11,6 +11,7 @@
 // Implementation is inspired from http://github.com/mity/md4c
 namespace AB {
     struct Boundaries {
+        OFFSET line_number;
         OFFSET pre = 0;
         OFFSET beg = 0;
         OFFSET end = 0;
@@ -71,8 +72,8 @@ namespace AB {
         std::string target;
     };
 
-    typedef std::function<bool(BLOCK_TYPE type, std::shared_ptr<BlockDetail> detail)> BlockFct;
-    typedef std::function<bool(SPAN_TYPE type, std::shared_ptr<SpanDetail> detail)> SpanFct;
+    typedef std::function<bool(BLOCK_TYPE type, const std::vector<Boundaries>& bounds, std::shared_ptr<BlockDetail> detail)> BlockFct;
+    typedef std::function<bool(SPAN_TYPE type, const Boundaries& bounds, std::shared_ptr<SpanDetail> detail)> SpanFct;
     typedef std::function<bool()> LeaveFct;
     typedef std::function<bool(TEXT_TYPE type, const OFFSET begin, const OFFSET end)> TextFct;
 

@@ -15,15 +15,16 @@ private:
     struct AB::Parser parser;
 public:
     ParserCheck() {
-        parser.enter_block = [&](AB::BLOCK_TYPE b_type, AB::BlockDetailPtr detail) -> bool {
+        parser.enter_block = [&](AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, AB::BlockDetailPtr detail) -> bool {
             for (int i = 0;i < level;i++) {
                 sstream << "  ";
             }
             level++;
 
             sstream << AB::block_to_name(b_type);
-            for (auto bound : detail->bounds) {
-                sstream << " {" << bound.pre;
+            for (auto bound : bounds) {
+                sstream << " {" << bound.line_number;
+                sstream << ": " << bound.pre;
                 sstream << ", " << bound.beg;
                 sstream << ", " << bound.end;
                 sstream << ", " << bound.post << "} ";

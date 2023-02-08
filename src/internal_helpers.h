@@ -2,11 +2,11 @@
 #include <string.h>
 
 namespace AB {
-    /*****************
-     ***  Helpers  ***
-     *****************/
+     /*****************
+      ***  Helpers  ***
+      *****************/
 
-     /* Character accessors. */
+      /* Character accessors. */
 #define CH(off)                 (ctx->text[(off)])
 #define STR(off)                (ctx->text + (off))
 
@@ -45,4 +45,10 @@ namespace AB {
 #define ISDIGIT(off)                    ISDIGIT_(CH(off))
 #define ISXDIGIT(off)                   ISXDIGIT_(CH(off))
 #define ISALNUM(off)                    ISALNUM_(CH(off))  
+
+
+#define NEXT_LOOP() off++;
+#define CHECK_WS_OR_END(off) ((off) >= (int)ctx->size || ((off) < (int)ctx->size && ISWHITESPACE((off))) || CH((off)) == '\n')
+#define CHECK_WS_BEFORE(off) (seg->first_non_blank >= (off))
+#define CHECK_SPACE_AFTER(off) (off < (OFFSET)ctx->size && CH(off + 1) == ' ')
 }
