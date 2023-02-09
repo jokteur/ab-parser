@@ -564,9 +564,11 @@ namespace AB {
                 detail->lower_case = ISLOWER(seg->b_bounds.beg);
                 add_container(ctx, BLOCK_OL, { seg->line_number,seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, seg, detail);
             }
+            ctx->above_container = nullptr;
         }
         else
             ctx->current_container = above_parent;
+
 
         // We can now add our list item
         auto detail = std::make_shared<BlockLiDetail>();
@@ -589,8 +591,8 @@ namespace AB {
 
         ContainerPtr& above_container = ctx->above_container;
 
-        if (seg->line_number == 2) {
-            // std::cout << std::endl;
+        if (seg->line_number == 4) {
+            std::cout << std::endl;
         }
 
         if (above_container != nullptr) {
@@ -651,11 +653,7 @@ namespace AB {
         ctx->containers.push_back(doc_container);
         ctx->current_container = *(ctx->containers.end() - 1);
 
-        std::vector<SegmentInfo> hist1, hist2;
-        std::vector<SegmentInfo>* history = &hist1;
-        std::vector<SegmentInfo>* prev_history = &hist2;
         SegmentInfo current_seg;
-        bool history_pivot = true;
 
         int depth = -1;
         int indent = 0;
@@ -663,8 +661,6 @@ namespace AB {
             select_last_child_container(ctx);
             CHECK_AND_RET(analyse_segment(ctx, off, &off, &current_seg));
             CHECK_AND_RET(process_segment(ctx, &off, &current_seg));
-
-            history->push_back(current_seg);
 
             // We arrived at a the end of a line
             if (off >= current_seg.end) {
