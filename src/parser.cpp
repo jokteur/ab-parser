@@ -254,20 +254,34 @@ namespace AB {
                 seg->first_non_blank = off;
             }
 
+            /* Indent is useful for knowing when to move above_container (see explanations
+             * in process_segment) in the case of lists. Here is an example:
+             *
+             * - > abc
+             *   > def
+             * ^
+         * cursor pos
+             *
+             * We are on the second line. above_container points to the LI, which has an
+             * indent of 2 (you need two whitespace characters before the block to be part
+             * of the LI). So if we detect enough whitespace characters before the block `>`,
+             * then we move the above_container to the child of the LI, i.e. QUOTE. This way,
+             * in process_segment(), the QUOTE can be continued as part of the LI.
+             * */
             if (indent > 0) {
-                // If indent is bigger than 0, it means that above_container is LI
-                // In this case, above_container parent's parent's always exists
+                /* If indent is bigger than 0, it means that above_container is LI
+                 * In this case, above_container parent's parent's always exists */
                 if (corrected_above_quote == nullptr && above_container->parent->parent->b_type == BLOCK_QUOTE) {
-                    // Quotes can 'eat' a space after the '>'
-                    // But we want this to be counted towards the indent for the LI
-                    // In case whitespace_counter < indent, then we reset like before after the loop
+                    /* Quotes can 'eat' a space after the '>'
+                     * But we want this to be counted towards the indent for the LI
+                     * In case whitespace_counter < indent, then we reset like before after the loop */
                     corrected_above_quote = above_container->parent->parent;
                     auto bounds = corrected_above_quote->content_boundaries.back();
                     bounds.beg--;
                     seg->start--;
                     whitespace_counter++;
                 }
-                // It means that there is enough indent to be part of the LI
+                /* It means that there is enough indent to be part of the LI */
                 if (whitespace_counter >= indent) {
                     above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
                     above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
@@ -489,8 +503,8 @@ namespace AB {
             if (verify_positiv_number(seg->li_number)) {
                 type = BlockOlDetail::OL_NUMERIC;
             }
-            // With this simple rule, we can decide between cases that are valid in both roman
-            // and alpha case, e.g. 'i)'
+            /* With this simple rule, we can decide between cases that are valid in both roman
+             * and alpha case, e.g. 'i)' */
             else if (alpha > 0 && roman > 0) {
                 if (alpha < roman)
                     type = BlockOlDetail::OL_ALPHABETIC;
@@ -506,13 +520,15 @@ namespace AB {
         }
 
         bool make_new_list = false;
-        // No current list going on
+        /* If above at the same level there is not list, then we must
+         * create a new list */
         if (!is_above_ul && !is_above_ol) {
             make_new_list = true;
         }
         else if (is_above_ul) {
             auto detail = std::static_pointer_cast<BlockUlDetail>(above_parent->detail);
-            // Try to find if current list, but different markers or enumeration
+            /* Even there is an above list, if the marker don't match then a new list
+             * is still created */
             if (pre_marker != detail->marker)
                 make_new_list = true;
         }
@@ -537,7 +553,8 @@ namespace AB {
             make_new_list = true;
         }
 
-        /* Close previous list item (LI) */
+        /* If above we have a list (at the same level at the current),
+         * we need to close the last inserted list element */
         if (is_above_ul || is_above_ol) {
             for (auto ptr : above_container->children) {
                 ptr->closed = true;
@@ -564,11 +581,14 @@ namespace AB {
                 detail->lower_case = ISLOWER(seg->b_bounds.beg);
                 add_container(ctx, BLOCK_OL, { seg->line_number,seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, seg, detail);
             }
+            /* Once we make a new list, the above pointer is not
+             * relevant anymore. We have to put it to nullptr, otherwise
+             * the above pointer could continue to point to the wrong
+             * part of the tree */
             ctx->above_container = nullptr;
         }
         else
             ctx->current_container = above_parent;
-
 
         // We can now add our list item
         auto detail = std::make_shared<BlockLiDetail>();
@@ -586,23 +606,72 @@ namespace AB {
         ctx->non_commited_blanks.clear();
     }
 
+    /**
+     * @brief Once a segment of a line has been analysed by the analyse_segment
+     * function, we need to decide were to place the block in the AST.
+     * This process is context dependent.
+     */
     bool process_segment(Context* ctx, OFFSET* off, SegmentInfo* seg) {
         bool ret = true;
 
+        /* Above container is the critical part to take decisions on how the place
+         * the newly analysed block. This pointer points to where we would be if we
+         * are looking at the same level on the above line.
+         * Here is an example:
+         *
+         *     > - item1
+         *     > abc
+         *     ^
+         *  cursor pos
+         *
+         * We are on the second line. We just detected a quote character. above_container
+         * points to the QUOTE of the previous line. This way we know we have to prolong
+         * the QUOTE and not create a new one. For the next loop, we use select_last_child_container()
+         * so the above pointer will point to the next block in the above line, i.e. list item (LI).
+         *
+         *     > - item1
+         *     > abc
+         *       ^
+         *   cursor pos
+         *
+         * On the second pass, we detected a paragraph. However, as above we point to the LI,
+         * we know that it should be closed and that the paragraph should be placed on the same
+         * level as the UL containing the LI.
+         *
+         * There is a second pointer called ctx->current_container. Whenever add_container() is
+         * called, the new block is insert as a child to ctx->current_container. This pointer
+         * closely follows above_container, until above_container is set to nullptr, in which
+         * case current_container always points to the last inserted block.
+         */
         ContainerPtr& above_container = ctx->above_container;
 
-        if (seg->line_number == 4) {
-            std::cout << std::endl;
-        }
-
         if (above_container != nullptr) {
+            /* Blank lines are not necessarily detected, e.g. and empty quote `>\n`
+             * This means if we want to know if above there is a blank line, we should look
+             * at the line number difference, e.g.
+             *
+             * > - paragraph1
+             * >
+             * >   paragraph2
+             *     ^
+             * cursor pos
+             *
+             * Here `paragraph2` should be part of the LI, but the second line didn't necessarily
+             * produce any blanks (it depends if there are spaces or not). This is our way to
+             * know that a new paragraph should be created, even though above_container points
+             * to a similar block than the current one (i.e. P).
+             * */
             int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
             if (!seg->blank_line && line_number_diff > 1) {
                 ctx->current_container = above_container->parent;
                 commit_blanks(ctx);
+                /* A new block should always set above_container to nullptr. It also prevents
+                 * the below condition to not be executed. */
                 ctx->above_container = nullptr;
             }
         }
+        /* If the above_container doesn't match the current detected block, then we have to close
+         * the current container. */
         if (above_container != nullptr && above_container->flag != seg->flags) {
             close_current_container(ctx);
             if (above_container->b_type == BLOCK_LI) {
@@ -613,7 +682,7 @@ namespace AB {
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
-        // Blank lines depend on the future, so we have to temporarily store them
+        /* Blank lines can depend on the future, so we have to temporarily store them */
         if (seg->blank_line) {
             ctx->non_commited_blanks.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end });
         }
