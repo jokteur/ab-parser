@@ -108,8 +108,9 @@ namespace AB {
         OFFSET start = 0;
         OFFSET end = 0;
         OFFSET first_non_blank = 0;
-        OFFSET indent = 999;
+        OFFSET indent = 0;
         OFFSET line_number = -1;
+        int above_list_depth = 0;
         // unsigned indent = 0;
         bool blank_line = true;
         ContainerPtr current_container = nullptr;
@@ -185,11 +186,10 @@ namespace AB {
     ***************/
 
     static void select_last_child_container(Context* ctx) {
-        ContainerPtr& above_container = ctx->above_container;
-        if (above_container != nullptr && !above_container->children.empty()) {
-            ctx->above_container = *(above_container->children.end() - 1);
+        if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
+            ctx->above_container = *(ctx->above_container->children.end() - 1);
             if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
-                ctx->above_container = *(above_container->children.end() - 1);
+                ctx->above_container = *(ctx->above_container->children.end() - 1);
             }
             ctx->current_container = ctx->above_container;
         }
@@ -213,6 +213,12 @@ namespace AB {
         seg->type = BLOCK_UL;
         seg->li_pre_marker = CH(off);
     }
+    static inline int get_allowed_ws(int flag) {
+        if (flag & QUOTE_OPENER)
+            return 1;
+        else
+            return 3;
+    }
 
     bool analyse_segment(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
         bool ret = true;
@@ -234,18 +240,21 @@ namespace AB {
         seg->b_bounds.post = -1;
         seg->blank_line = true; // Unless otherwise, the default line is a blank line
 
-        int indent = 0;
+        int local_indent = 0;
+        int total_indent = 0;
         ContainerPtr corrected_above_quote = nullptr;
         if (above_container != nullptr) {
-            indent = above_container->indent;
+            local_indent = above_container->indent;
+            total_indent = local_indent;
         }
         int whitespace_counter = 0;
         std::string acc; // Acc is for accumulator
         enum SOLVED { NONE, PARTIAL, FULL };
         SOLVED b_solved = NONE;
 
+
         // Useful macros for segment analysis
-#define CHECK_INDENT(allowed_ws) (off - seg->start <= indent + (allowed_ws))
+#define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
 
         // Segment analysis
         while (off < seg->end) {
@@ -265,7 +274,7 @@ namespace AB {
              * then we move the above_container to the child of the LI, i.e. QUOTE. This way,
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
-            if (indent > 0 && seg->blank_line) {
+            if (local_indent > 0 && seg->blank_line) {
                 if (corrected_above_quote == nullptr && above_container != nullptr
                     && above_container->parent != nullptr && above_container->parent->b_type == BLOCK_QUOTE) {
                     /* Quotes can 'eat' a space after the '>'
@@ -278,13 +287,15 @@ namespace AB {
                     whitespace_counter++;
                 }
                 /* It means that there is enough indent to be part of the LI */
-                if (whitespace_counter >= indent) {
+                if (whitespace_counter >= local_indent) {
                     above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
                     above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
                     seg->start = off;
                     select_last_child_container(ctx);
+                    seg->above_list_depth++;
                     above_container = ctx->above_container;
-                    indent = above_container->indent;
+                    total_indent += above_container->indent;
+                    local_indent = above_container->indent;
                 }
             }
 
@@ -310,7 +321,7 @@ namespace AB {
                     next_utf8_char(&off);
             }
             else if (CH(off) == '>') {
-                if (CHECK_WS_BEFORE(off) && CHECK_INDENT(1)) {
+                if (CHECK_WS_BEFORE(off) && CHECK_INDENT(get_allowed_ws(QUOTE_OPENER))) {
                     // Valid quote
                     seg->b_bounds.pre = seg->start; seg->b_bounds.beg = off + 1;
                     seg->flags = QUOTE_OPENER;
@@ -352,7 +363,7 @@ namespace AB {
                     break;
                 }
                 else if (CHECK_WS_BEFORE(off) && CHECK_WS_OR_END(off + 1) && !(seg->flags & LIST_OPENER
-                    && CHECK_INDENT(3))) {
+                    && CHECK_INDENT(get_allowed_ws(LIST_OPENER)))) {
                     // Unordered list
                     analyse_make_ul(ctx, off, &this_segment_end, seg, whitespace_counter);
                     break;
@@ -365,7 +376,7 @@ namespace AB {
             }
             else if (CH(off) == '+') {
                 if (CHECK_WS_BEFORE(off) && CHECK_WS_OR_END(off + 1) && !(seg->flags & LIST_OPENER)
-                    && CHECK_INDENT(3)) {
+                    && CHECK_INDENT(get_allowed_ws(LIST_OPENER))) {
                     // Make list
                     analyse_make_ul(ctx, off, &this_segment_end, seg, whitespace_counter);
                     break;
@@ -409,9 +420,9 @@ namespace AB {
             next_utf8_char(&off);
         }
 
-        // As stated before in the loop, if there was not enough indent to be part of a LI
-        // and there was a quote as a parent, then we have to reset the boundaries for the quote
-        if (whitespace_counter < indent && corrected_above_quote != nullptr) {
+        /* As stated before in the loop, if there was not enough indent to be part of a LI
+         * and there was a quote as a parent, then we have to reset the boundaries for the quote */
+        if (whitespace_counter < local_indent && corrected_above_quote != nullptr) {
             seg->start++;
             seg->b_bounds.pre++;
             seg->b_bounds.beg++;
@@ -420,7 +431,9 @@ namespace AB {
         }
 
         if (!seg->blank_line && seg->flags == 0) {
-            seg->flags = P_OPENER;
+            analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+        }
+        if (whitespace_counter < local_indent && seg->first_non_blank - seg->start > get_allowed_ws(seg->flags)) {
             analyse_make_p(ctx, seg->start, &this_segment_end, seg);
         }
 
@@ -432,8 +445,8 @@ namespace AB {
                 std::cout << "Make p from list" << std::endl;
             }
             else {
-                // Still need to verify if ordered list has valid enumeration
-                // Example: 'IM' is not a valid roman value
+                /* Still need to verify if ordered list has valid enumeration
+                 * Example: 'IM' is not a valid roman value */
                 if ((verify_positiv_number(acc) && acc.length() < 10)
                     || validate_roman_enumeration(acc)
                     || alpha_to_decimal(acc) > 0 && acc.length() < 4) {
@@ -639,6 +652,10 @@ namespace AB {
          */
         ContainerPtr& above_container = ctx->above_container;
 
+        if (seg->line_number == 6) {
+            above_container = ctx->above_container;
+        }
+
         if (above_container != nullptr) {
             /* Blank lines are not necessarily detected, e.g. and empty quote `>\n`
              * This means if we want to know if above there is a blank line, we should look
@@ -657,7 +674,8 @@ namespace AB {
              * */
             int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
             if (!seg->blank_line && line_number_diff > 1) {
-                ctx->current_container = above_container->parent;
+                if (seg->above_list_depth == 0 && above_container->flag != seg->flags)
+                    ctx->current_container = above_container->parent;
                 commit_blanks(ctx);
                 /* A new block should always set above_container to nullptr. It also prevents
                  * the below condition to not be executed. */
