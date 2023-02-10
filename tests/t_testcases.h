@@ -3,6 +3,7 @@
 #include <doctest/doctest.h>
 #include <string>
 #include <sstream>
+#include <set>
 #include <filesystem>
 #include <fstream>
 #include <vector>
@@ -73,10 +74,10 @@ public:
                 for (int i = 0;i < level;i++) {
                     html << "  ";
                 }
-                html << "<" << AB::block_to_html(b_type) << "/>";
+                html << "</" << AB::block_to_html(b_type) << ">";
             }
             else if (b_type != AB::BLOCK_HR)
-                html << "<" << AB::block_to_html(b_type) << "/>";
+                html << "</" << AB::block_to_html(b_type) << ">";
             has_entered = false;
             return true;
         };
@@ -97,44 +98,52 @@ public:
 
 TEST_SUITE("Parser") {
     TEST_CASE("AST check") {
-        std::filesystem::path cwd = std::filesystem::current_path();
-        // ast_out is where all the outputs will be stored
-        std::filesystem::remove_all("ast_out");
-        std::filesystem::create_directory("ast_out");
+        namespace fs = std::filesystem;
 
-        for (const auto& file : std::filesystem::directory_iterator(cwd)) {
-            if (file.path().extension() == ".ab") {
+        fs::path cwd = fs::current_path();
+        // ast_out is where all the outputs will be stored
+        fs::remove_all("ast_out");
+        fs::create_directory("ast_out");
+
+        std::set<fs::path> sorted_files;
+
+        for (auto& entry : fs::directory_iterator(cwd))
+            sorted_files.insert(entry.path());
+
+        for (const auto& file : sorted_files) {
+            if (file.extension() == ".ab") {
                 // Find test case name
-                std::string name(file.path().filename().generic_string());
+                std::string name(file.filename().generic_string());
                 name = name.substr(0, name.length() - 3);
 
                 // Read content of input
-                std::ifstream ifs1(file.path().generic_string());
+                std::ifstream ifs1(file.generic_string());
                 std::string txt_input((std::istreambuf_iterator<char>(ifs1)), (std::istreambuf_iterator<char>()));
 
                 // Read content of AST
-                std::string ast_file(file.path().parent_path().concat(name + ".ast").generic_string());
-                std::string expected_ast;
-                if (std::filesystem::exists(ast_file)) {
+                std::string ast_file(file.parent_path().concat("/" + name + ".ast").generic_string());
+                std::stringstream expected_ast;
+                if (fs::exists(ast_file)) {
                     std::ifstream ifs2(ast_file);
-                    std::string expected_ast((std::istreambuf_iterator<char>(ifs2)), (std::istreambuf_iterator<char>()));
+                    expected_ast << ifs2.rdbuf();
                 }
 
                 // Read content of html
-                std::string html_file(file.path().parent_path().concat(name + ".html").generic_string());
-                std::string expected_html;
-                if (std::filesystem::exists(html_file)) {
+                std::string html_file(file.parent_path().concat("/" + name + ".html").generic_string());
+                std::stringstream expected_html;
+                if (fs::exists(html_file)) {
                     std::ifstream ifs3(html_file);
-                    std::string expected_html((std::istreambuf_iterator<char>(ifs3)), (std::istreambuf_iterator<char>()));
+                    expected_html << ifs3.rdbuf();
                 }
+
 
                 ParserCheck testcase;
                 std::string out_ast;
                 std::string out_html;
-                bool ret = testcase.check_ast(txt_input, expected_ast, expected_html, out_ast, out_html);
+                bool ret = testcase.check_ast(txt_input, expected_ast.str(), expected_html.str(), out_ast, out_html);
 
-                std::string outpath_ast(std::filesystem::path(cwd).append("ast_out").append(name + ".ast").generic_string());
-                std::string outpath_html(std::filesystem::path(cwd).append("ast_out").append(name + ".html").generic_string());
+                std::string outpath_ast(fs::path(cwd).append("ast_out").append(name + ".ast").generic_string());
+                std::string outpath_html(fs::path(cwd).append("ast_out").append(name + ".html").generic_string());
                 std::ofstream outfile_ast(outpath_ast);
                 std::ofstream outfile_html(outpath_html);
                 outfile_html << out_html;

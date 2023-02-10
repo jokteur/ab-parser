@@ -204,10 +204,10 @@ namespace AB {
         seg->type = BLOCK_P;
         *end = seg->end;
     }
-    static void analyse_make_ul(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
+    static void analyse_make_ul(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg, int indent) {
         seg->b_bounds.pre = seg->start;
         seg->b_bounds.beg = (off + 1 == seg->end) ? off + 1 : off + 2;
-        seg->indent = off + 2 - seg->start;
+        seg->indent = off + 2 - seg->start + indent;
         *end = (CHECK_SPACE_AFTER(off)) ? off + 2 : off + 1;
         seg->flags = LIST_OPENER;
         seg->type = BLOCK_UL;
@@ -223,6 +223,8 @@ namespace AB {
         seg->line_number = ctx->offset_to_line_number[off];
         OFFSET this_segment_end = seg->end;
         ContainerPtr above_container = ctx->above_container;
+
+        int line_start = off;
 
         seg->start = off;
         seg->first_non_blank = seg->end; // Unless otherwise, the first blank is defined at the end of the line
@@ -249,11 +251,6 @@ namespace AB {
         while (off < seg->end) {
             acc += CH(off);
 
-            if (!(ISWHITESPACE(off) || CH(off) == '\n') && seg->blank_line) {
-                seg->blank_line = false;
-                seg->first_non_blank = off;
-            }
-
             /* Indent is useful for knowing when to move above_container (see explanations
              * in process_segment) in the case of lists. Here is an example:
              *
@@ -268,9 +265,7 @@ namespace AB {
              * then we move the above_container to the child of the LI, i.e. QUOTE. This way,
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
-            if (indent > 0) {
-                /* If indent is bigger than 0, it means that above_container is LI
-                 * In this case, above_container parent's parent's always exists */
+            if (indent > 0 && seg->blank_line) {
                 if (corrected_above_quote == nullptr && above_container->parent->parent->b_type == BLOCK_QUOTE) {
                     /* Quotes can 'eat' a space after the '>'
                      * But we want this to be counted towards the indent for the LI
@@ -289,8 +284,13 @@ namespace AB {
                     select_last_child_container(ctx);
                     above_container = ctx->above_container;
                     indent = above_container->indent;
-
+                    // whitespace_counter = 0;
                 }
+            }
+
+            if (!(ISWHITESPACE(off) || CH(off) == '\n') && seg->blank_line) {
+                seg->blank_line = false;
+                seg->first_non_blank = off;
             }
 
             if (CH(off) == ' ') {
@@ -331,7 +331,7 @@ namespace AB {
             else if (CH(off) == '*') { // Potential bullet lists
                 if (CHECK_WS_BEFORE(off) && CHECK_WS_OR_END(off + 1) && !(seg->flags & LIST_OPENER)) {
                     // Make list
-                    analyse_make_ul(ctx, off, &this_segment_end, seg);
+                    analyse_make_ul(ctx, off, &this_segment_end, seg, whitespace_counter);
                     break;
                 }
                 else {
@@ -353,7 +353,7 @@ namespace AB {
                 else if (CHECK_WS_BEFORE(off) && CHECK_WS_OR_END(off + 1) && !(seg->flags & LIST_OPENER
                     && CHECK_INDENT(3))) {
                     // Unordered list
-                    analyse_make_ul(ctx, off, &this_segment_end, seg);
+                    analyse_make_ul(ctx, off, &this_segment_end, seg, whitespace_counter);
                     break;
                 }
                 else {
@@ -366,7 +366,7 @@ namespace AB {
                 if (CHECK_WS_BEFORE(off) && CHECK_WS_OR_END(off + 1) && !(seg->flags & LIST_OPENER)
                     && CHECK_INDENT(3)) {
                     // Make list
-                    analyse_make_ul(ctx, off, &this_segment_end, seg);
+                    analyse_make_ul(ctx, off, &this_segment_end, seg, whitespace_counter);
                     break;
                 }
             }
@@ -389,12 +389,11 @@ namespace AB {
                     // The validity of enumeration should still be checked
                     seg->b_bounds.pre = seg->start;
                     seg->b_bounds.beg = off + 1;
-                    seg->indent = off + 1 - seg->start;
+                    seg->indent = off + 2 - seg->start;
                     this_segment_end = off + 2;
-                    if (off + 1 < (OFFSET)ctx->size && CH(off + 1) == ' ') {
-                        seg->b_bounds.beg = off + 2;
-                        this_segment_end = off + 2;
-                    }
+                    if (off + 1 < (OFFSET)ctx->size && CH(off + 1) == ' ')
+                        seg->b_bounds.beg++;
+
                     seg->flags = LIST_OPENER;
                     b_solved = PARTIAL;
                     seg->li_post_marker = CH(off);
@@ -581,11 +580,6 @@ namespace AB {
                 detail->lower_case = ISLOWER(seg->b_bounds.beg);
                 add_container(ctx, BLOCK_OL, { seg->line_number,seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, seg, detail);
             }
-            /* Once we make a new list, the above pointer is not
-             * relevant anymore. We have to put it to nullptr, otherwise
-             * the above pointer could continue to point to the wrong
-             * part of the tree */
-            ctx->above_container = nullptr;
         }
         else
             ctx->current_container = above_parent;
@@ -595,6 +589,8 @@ namespace AB {
         if (!is_ul)
             detail->number = seg->li_number;
         add_container(ctx, BLOCK_LI, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end }, seg, detail);
+
+        ctx->above_container = nullptr;
         return true;
     }
 
