@@ -108,7 +108,7 @@ namespace AB {
         OFFSET start = 0;
         OFFSET end = 0;
         OFFSET first_non_blank = 0;
-        OFFSET indent = 0;
+        OFFSET indent = 999;
         OFFSET line_number = -1;
         // unsigned indent = 0;
         bool blank_line = true;
@@ -266,7 +266,8 @@ namespace AB {
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
             if (indent > 0 && seg->blank_line) {
-                if (corrected_above_quote == nullptr && above_container->parent->parent->b_type == BLOCK_QUOTE) {
+                if (corrected_above_quote == nullptr && above_container != nullptr
+                    && above_container->parent != nullptr && above_container->parent->b_type == BLOCK_QUOTE) {
                     /* Quotes can 'eat' a space after the '>'
                      * But we want this to be counted towards the indent for the LI
                      * In case whitespace_counter < indent, then we reset like before after the loop */
@@ -284,13 +285,13 @@ namespace AB {
                     select_last_child_container(ctx);
                     above_container = ctx->above_container;
                     indent = above_container->indent;
-                    // whitespace_counter = 0;
                 }
             }
 
             if (!(ISWHITESPACE(off) || CH(off) == '\n') && seg->blank_line) {
                 seg->blank_line = false;
                 seg->first_non_blank = off;
+                acc = CH(off);
             }
 
             if (CH(off) == ' ') {
@@ -389,7 +390,7 @@ namespace AB {
                     // The validity of enumeration should still be checked
                     seg->b_bounds.pre = seg->start;
                     seg->b_bounds.beg = off + 1;
-                    seg->indent = off + 2 - seg->start;
+                    seg->indent = off + 2 - seg->start + whitespace_counter;
                     this_segment_end = off + 2;
                     if (off + 1 < (OFFSET)ctx->size && CH(off + 1) == ' ')
                         seg->b_bounds.beg++;
@@ -405,14 +406,6 @@ namespace AB {
                     break;
                 }
             }
-            // Any other char will be treated as the beginning of a paragraph
-            // as long we are not in the text of a definition
-            else if (!(seg->flags & (DEFINITION_OPENER | LIST_OPENER))) {
-                analyse_make_p(ctx, seg->start, &this_segment_end, seg);
-                break;
-            }
-
-
             next_utf8_char(&off);
         }
 
@@ -424,6 +417,11 @@ namespace AB {
             seg->b_bounds.beg++;
             auto bounds = corrected_above_quote->content_boundaries.back();
             bounds.beg++;
+        }
+
+        if (!seg->blank_line && seg->flags == 0) {
+            seg->flags = P_OPENER;
+            analyse_make_p(ctx, seg->start, &this_segment_end, seg);
         }
 
         // If potential list has been detected, verify if the enumeration makes sense

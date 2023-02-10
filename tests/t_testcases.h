@@ -9,6 +9,9 @@
 #include <vector>
 #include "parser.h"
 
+static const int AST_FAILED = 0x1;
+static const int HTML_FAILED = 0x2;
+
 class ParserCheck {
 private:
     int level = 0;
@@ -83,16 +86,18 @@ public:
         };
     }
 
-    bool check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html) {
+    int check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html) {
         txt = txt_input;
         AB::parse(txt_input.c_str(), (AB::SIZE)txt_input.length(), &parser);
         out_ast = ast.str();
         out_html = html.str();
 
-        if (out_ast != expected_ast || expected_html != out_html)
-            return false;
-        else
-            return true;
+        int ret = 0;
+        if (out_ast != expected_ast)
+            ret |= AST_FAILED;
+        if (out_html != expected_html)
+            ret |= HTML_FAILED;
+        return ret;
     }
 };
 
@@ -140,7 +145,7 @@ TEST_SUITE("Parser") {
                 ParserCheck testcase;
                 std::string out_ast;
                 std::string out_html;
-                bool ret = testcase.check_ast(txt_input, expected_ast.str(), expected_html.str(), out_ast, out_html);
+                int ret = testcase.check_ast(txt_input, expected_ast.str(), expected_html.str(), out_ast, out_html);
 
                 std::string outpath_ast(fs::path(cwd).append("ast_out").append(name + ".ast").generic_string());
                 std::string outpath_html(fs::path(cwd).append("ast_out").append(name + ".html").generic_string());
@@ -148,7 +153,16 @@ TEST_SUITE("Parser") {
                 std::ofstream outfile_html(outpath_html);
                 outfile_html << out_html;
                 outfile_ast << out_ast;
-                CHECK_MESSAGE(ret, "Failed for test case '", name, "' ; see outputs");
+
+                if ((ret & AST_FAILED) && (ret & HTML_FAILED)) {
+                    CHECK_MESSAGE(false, "Failed both AST and HTML for test case '", name, "' ; see outputs");
+                }
+                else if ((ret & AST_FAILED)) {
+                    CHECK_MESSAGE(false, "Failed AST for test case '", name, "' ; see outputs");
+                }
+                else if ((ret & HTML_FAILED)) {
+                    CHECK_MESSAGE(false, "Failed HTML for test case '", name, "' ; see outputs");
+                }
             }
         }
     }
