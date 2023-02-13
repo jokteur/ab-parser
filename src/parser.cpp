@@ -69,6 +69,11 @@ namespace AB {
         unsigned indent = 0;
     };
 
+    struct TemporaryBoundary {
+        Boundaries bounds;
+        ContainerPtr parent;
+    };
+
     /**************
     *** Context ***
     ***************/
@@ -85,7 +90,8 @@ namespace AB {
         ContainerPtr current_container;
         ContainerPtr above_container = nullptr;
 
-        std::vector<Boundaries> non_commited_blanks;
+        std::vector<TemporaryBoundary> non_commited_blanks;
+        std::vector<TemporaryBoundary> non_commited_boundaries;
 
         // std::vector<SegmentInfo*>* seg_above_history;
         // std::vector<SegmentInfo*>* seg_history;
@@ -253,6 +259,22 @@ namespace AB {
         SOLVED b_solved = NONE;
 
 
+        if (local_indent > 0 && above_container != nullptr && above_container->parent != nullptr
+            && above_container->parent->parent->b_type == BLOCK_QUOTE) {
+            /* Quotes can 'eat' a space after the '>'
+             * But we want this to be counted towards the indent for the LI
+             * In case whitespace_counter < indent, then we reset like before after the loop
+             *
+             * In case the indent won't be enough for the LI, this will be uncorrected */
+            seg->b_bounds.pre--; seg->b_bounds.beg--;
+            corrected_above_quote = above_container->parent->parent;
+            auto bounds = corrected_above_quote->content_boundaries.back();
+            bounds.beg--;
+            seg->start--;
+            whitespace_counter++;
+        }
+
+
         // Useful macros for segment analysis
 #define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
 
@@ -274,35 +296,32 @@ namespace AB {
              * then we move the above_container to the child of the LI, i.e. QUOTE. This way,
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
-            if (local_indent > 0 && seg->blank_line) {
-                if (corrected_above_quote == nullptr && above_container != nullptr
-                    && above_container->parent != nullptr && above_container->parent->b_type == BLOCK_QUOTE) {
-                    /* Quotes can 'eat' a space after the '>'
-                     * But we want this to be counted towards the indent for the LI
-                     * In case whitespace_counter < indent, then we reset like before after the loop */
-                    corrected_above_quote = above_container->parent->parent;
-                    auto bounds = corrected_above_quote->content_boundaries.back();
-                    bounds.beg--;
-                    seg->start--;
-                    whitespace_counter++;
-                }
-                /* It means that there is enough indent to be part of the LI */
-                if (whitespace_counter >= local_indent) {
-                    above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
-                    above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
-                    seg->start = off;
-                    select_last_child_container(ctx);
-                    seg->above_list_depth++;
-                    above_container = ctx->above_container;
-                    total_indent += above_container->indent;
-                    local_indent = above_container->indent;
-                }
+             /* It means that there is enough indent to be part of the LI */
+            if (local_indent > 0 && seg->blank_line && whitespace_counter >= local_indent) {
+                // above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
+                // above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
+                ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, off, seg->end, seg->end}, ctx->above_container });
+                std::cout << "Boundary on line " << seg->line_number << std::endl;
+                seg->start = off;
+                select_last_child_container(ctx);
+                seg->above_list_depth++;
+                above_container = ctx->above_container;
+                total_indent += above_container->indent;
+                local_indent = above_container->indent;
             }
 
             if (!(ISWHITESPACE(off) || CH(off) == '\n') && seg->blank_line) {
                 seg->blank_line = false;
                 seg->first_non_blank = off;
                 acc = CH(off);
+                /* As stated before, if there was not enough indent to be part of a LI and there
+                 * was a quote as a parent, then we have to reset the boundaries for the quote */
+                if (seg->above_list_depth == 0 && corrected_above_quote != nullptr) {
+                    seg->start++;
+                    seg->b_bounds.pre++; seg->b_bounds.beg++;
+                    auto bounds = corrected_above_quote->content_boundaries.back();
+                    bounds.beg++;
+                }
             }
 
             if (CH(off) == ' ') {
@@ -418,16 +437,6 @@ namespace AB {
                 }
             }
             next_utf8_char(&off);
-        }
-
-        /* As stated before in the loop, if there was not enough indent to be part of a LI
-         * and there was a quote as a parent, then we have to reset the boundaries for the quote */
-        if (whitespace_counter < local_indent && corrected_above_quote != nullptr) {
-            seg->start++;
-            seg->b_bounds.pre++;
-            seg->b_bounds.beg++;
-            auto bounds = corrected_above_quote->content_boundaries.back();
-            bounds.beg++;
         }
 
         if (!seg->blank_line && seg->flags == 0) {
@@ -605,12 +614,23 @@ namespace AB {
         return true;
     }
 
-    void commit_blanks(Context* ctx) {
-        for (auto& bounds : ctx->non_commited_blanks) {
-            add_container(ctx, BLOCK_HIDDEN, bounds);
-            close_current_container(ctx);
+    void commit_blanks(Context* ctx, ContainerPtr ptr = nullptr) {
+        ContainerPtr current = ctx->current_container;
+        if (ptr == nullptr) {
+            for (auto& blank : ctx->non_commited_boundaries) {
+                blank.parent->content_boundaries.push_back(blank.bounds);
+                // UL
+                blank.parent->parent->content_boundaries.push_back({ blank.bounds.line_number, blank.bounds.pre, blank.bounds.pre, blank.bounds.end, blank.bounds.end });
+            }
+            for (auto& blank : ctx->non_commited_blanks) {
+                ctx->current_container = blank.parent;
+                add_container(ctx, BLOCK_HIDDEN, blank.bounds);
+                close_current_container(ctx);
+            }
         }
+        ctx->current_container = current;
         ctx->non_commited_blanks.clear();
+        ctx->non_commited_boundaries.clear();
     }
 
     /**
@@ -656,6 +676,12 @@ namespace AB {
             above_container = ctx->above_container;
         }
 
+        // std::cout << "Line " << seg->line_number << " / Detected: " << block_to_name(seg->type);
+        // if (above_container != nullptr)
+        //     std::cout << " Above:" << block_to_html(above_container->b_type) << std::endl;
+        // else
+        //     std::cout << std::endl;
+
         if (above_container != nullptr) {
             /* Blank lines are not necessarily detected, e.g. and empty quote `>\n`
              * This means if we want to know if above there is a blank line, we should look
@@ -672,16 +698,31 @@ namespace AB {
              * know that a new paragraph should be created, even though above_container points
              * to a similar block than the current one (i.e. P).
              * */
-            int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
-            if (!seg->blank_line && line_number_diff > 1) {
-                if (seg->above_list_depth == 0 && above_container->flag != seg->flags)
-                    ctx->current_container = above_container->parent;
-                commit_blanks(ctx);
-                /* A new block should always set above_container to nullptr. It also prevents
-                 * the below condition to not be executed. */
-                ctx->above_container = nullptr;
+            if (!seg->blank_line) {
+                int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
+                if (seg->above_list_depth > 0) {
+                    std::cout << "Commit all blanks to LI @line " << seg->line_number << std::endl;
+                    commit_blanks(ctx);
+                }
+                else if (above_container->flag != seg->flags) {
+                    std::cout << "Don't commit blanks to LI @line " << seg->line_number << " / above: " << block_to_html(above_container->b_type) << std::endl;
+                }
             }
+            // if (!seg->blank_line && line_number_diff > 1) {
+            //     if (seg->above_list_depth == 0 && above_container->flag != seg->flags)
+            //         ctx->current_container = above_container->parent;
+            //     commit_blanks(ctx);
+            //     /* A new block should always set above_container to nullptr. It also prevents
+            //      * the below condition to not be executed. */
+            //     ctx->above_container = nullptr;
+            // }
         }
+        /* Blank lines can depend on the future, so we have to temporarily store them */
+        if (seg->blank_line) {
+            std::cout << "Blank on line " << seg->line_number << std::endl;
+            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, above_container });
+        }
+
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
         if (above_container != nullptr && above_container->flag != seg->flags) {
@@ -694,10 +735,6 @@ namespace AB {
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
-        /* Blank lines can depend on the future, so we have to temporarily store them */
-        if (seg->blank_line) {
-            ctx->non_commited_blanks.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end });
-        }
 
         else if (seg->flags & P_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_P)) {
@@ -750,6 +787,7 @@ namespace AB {
                 off++;
             }
         }
+        std::cout << "END" << std::endl;
         return ret;
     abort:
         return ret;
