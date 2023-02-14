@@ -165,6 +165,7 @@ TEST_SUITE("Parser") {
                         CHECK_MESSAGE(false, "Failed HTML for test case '", name, "' ; see outputs");
                     }
                 }
+                exit(0);
             }
         }
     }

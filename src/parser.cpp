@@ -717,21 +717,24 @@ namespace AB {
             //     ctx->above_container = nullptr;
             // }
         }
-        /* Blank lines can depend on the future, so we have to temporarily store them */
-        if (seg->blank_line) {
-            std::cout << "Blank on line " << seg->line_number << std::endl;
-            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, above_container });
-        }
 
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
-        if (above_container != nullptr && above_container->flag != seg->flags) {
+        bool is_above_different = above_container != nullptr && above_container->flag != seg->flags;
+        if (is_above_different) {
             close_current_container(ctx);
             if (above_container->b_type == BLOCK_LI) {
                 close_current_container(ctx);
             }
-            ctx->above_container = nullptr;
         }
+
+        /* Blank lines can depend on the future, so we have to temporarily store them */
+        if (seg->blank_line) {
+            std::cout << "Blank on line " << seg->line_number << " current: " << block_to_name(ctx->current_container->b_type) << " above: " << block_to_name(above_container->b_type) << std::endl;
+            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, above_container });
+        }
+        if (is_above_different)
+            above_container = nullptr;
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
