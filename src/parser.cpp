@@ -121,6 +121,7 @@ namespace AB {
         bool blank_line = true;
         ContainerPtr current_container = nullptr;
         bool has_content_after = true;
+        bool skip_segment = false;
 
         // List information
         char li_pre_marker = 0;
@@ -445,6 +446,13 @@ namespace AB {
         if (whitespace_counter < local_indent && seg->first_non_blank - seg->start > get_allowed_ws(seg->flags)) {
             analyse_make_p(ctx, seg->start, &this_segment_end, seg);
         }
+        /* Some blank lines can be transformed into boundaries of LI */
+        if (seg->blank_line && whitespace_counter < local_indent
+            && above_container != nullptr && above_container->b_type == BLOCK_LI) {
+            std::cout << "Blank transformed to boundary @line " << seg->line_number << std::endl;
+            ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, seg->end, seg->end, seg->end}, ctx->above_container });
+            seg->skip_segment = true;
+        }
 
         // If potential list has been detected, verify if the enumeration makes sense
         if (seg->flags & LIST_OPENER && b_solved == PARTIAL) {
@@ -495,6 +503,14 @@ namespace AB {
         ctx->containers.push_back(container);
         ctx->current_container = *(ctx->containers.end() - 1);
         parent->children.push_back(ctx->current_container);
+    }
+
+    /* Pass a non-null ptr and non root ptr to this function */
+    static inline ContainerPtr select_parent(ContainerPtr ptr) {
+        ContainerPtr parent = ptr->parent;
+        if (parent->b_type == BLOCK_UL || parent->b_type == BLOCK_OL)
+            parent = parent->parent;
+        return parent;
     }
 
     /* To avoid `if (ctx->current_container == nullptr)`, we have to make
@@ -672,9 +688,8 @@ namespace AB {
          */
         ContainerPtr& above_container = ctx->above_container;
 
-        if (seg->line_number == 6) {
-            above_container = ctx->above_container;
-        }
+        if (seg->skip_segment)
+            return true;
 
         // std::cout << "Line " << seg->line_number << " / Detected: " << block_to_name(seg->type);
         // if (above_container != nullptr)
@@ -682,6 +697,7 @@ namespace AB {
         // else
         //     std::cout << std::endl;
 
+        bool set_above_to_nullptr = false;
         if (above_container != nullptr) {
             /* Blank lines are not necessarily detected, e.g. and empty quote `>\n`
              * This means if we want to know if above there is a blank line, we should look
@@ -700,40 +716,40 @@ namespace AB {
              * */
             if (!seg->blank_line) {
                 int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
+                if (line_number_diff > 1) {
+                    set_above_to_nullptr = true;
+                }
                 if (seg->above_list_depth > 0) {
-                    std::cout << "Commit all blanks to LI @line " << seg->line_number << std::endl;
+                    // std::cout << "Commit all blanks to LI @line " << seg->line_number << std::endl;
                     commit_blanks(ctx);
+                    set_above_to_nullptr = true;
                 }
                 else if (above_container->flag != seg->flags) {
-                    std::cout << "Don't commit blanks to LI @line " << seg->line_number << " / above: " << block_to_html(above_container->b_type) << std::endl;
+                    // std::cout << "Don't commit blanks to LI @line " << seg->line_number << " / above: " << block_to_html(above_container->b_type) << std::endl;
                 }
             }
-            // if (!seg->blank_line && line_number_diff > 1) {
-            //     if (seg->above_list_depth == 0 && above_container->flag != seg->flags)
-            //         ctx->current_container = above_container->parent;
-            //     commit_blanks(ctx);
-            //     /* A new block should always set above_container to nullptr. It also prevents
-            //      * the below condition to not be executed. */
-            //     ctx->above_container = nullptr;
-            // }
         }
 
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
-        bool is_above_different = above_container != nullptr && above_container->flag != seg->flags;
-        if (is_above_different) {
+        if (above_container != nullptr && above_container->flag != seg->flags) {
             close_current_container(ctx);
             if (above_container->b_type == BLOCK_LI) {
                 close_current_container(ctx);
             }
+            set_above_to_nullptr = true;
         }
 
         /* Blank lines can depend on the future, so we have to temporarily store them */
         if (seg->blank_line) {
-            std::cout << "Blank on line " << seg->line_number << " current: " << block_to_name(ctx->current_container->b_type) << " above: " << block_to_name(above_container->b_type) << std::endl;
-            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, above_container });
+            ContainerPtr parent = ctx->containers[0]; // By default, blank lines belong to ROOT
+            /* Blank lines should always be commited to parent above container */
+            if (above_container != nullptr) {
+                parent = select_parent(above_container);
+            }
+            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, parent });
         }
-        if (is_above_different)
+        if (set_above_to_nullptr)
             above_container = nullptr;
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
