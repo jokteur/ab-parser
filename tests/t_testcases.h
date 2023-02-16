@@ -164,6 +164,10 @@ TEST_SUITE("Parser") {
                     else if ((ret & HTML_FAILED)) {
                         CHECK_MESSAGE(false, "Failed HTML for test case '", name, "' ; see outputs");
                     }
+                    else {
+                        /* Count towards assertions */
+                        CHECK_MESSAGE(true, "");
+                    }
                 }
             }
         }
