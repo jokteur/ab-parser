@@ -260,20 +260,6 @@ namespace AB {
         enum SOLVED { NONE, PARTIAL, FULL };
         SOLVED b_solved = NONE;
 
-        if (local_indent > 0 && above_container != nullptr && above_container->parent != nullptr
-            && above_container->parent->parent->b_type == BLOCK_QUOTE) {
-            /* Quotes can 'eat' a space after the '>'
-             * But we want this to be counted towards the indent for the LI
-             * In case whitespace_counter < indent, then we reset like before after the loop
-             *
-             * In case the indent won't be enough for the LI, this will be uncorrected */
-            seg->b_bounds.pre--; seg->b_bounds.beg--;
-            corrected_above_quote = above_container->parent->parent;
-            corrected_above_quote->content_boundaries.back().beg--;
-            seg->start--;
-            whitespace_counter++;
-        }
-
         // Useful macros for segment analysis
 #define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
 
@@ -312,13 +298,6 @@ namespace AB {
                 seg->blank_line = false;
                 seg->first_non_blank = off;
                 acc = CH(off);
-                /* As stated before, if there was not enough indent to be part of a LI and there
-                 * was a quote as a parent, then we have to reset the boundaries for the quote */
-                if (seg->above_list_depth == 0 && corrected_above_quote != nullptr) {
-                    seg->start++;
-                    seg->b_bounds.pre++; seg->b_bounds.beg++;
-                    corrected_above_quote->content_boundaries.back().beg++;
-                }
             }
 
             if (CH(off) == ' ') {
