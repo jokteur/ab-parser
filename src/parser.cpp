@@ -65,6 +65,7 @@ namespace AB {
         ContainerPtr parent = nullptr;
         std::vector<ContainerPtr> children;
         std::vector<Boundaries> content_boundaries;
+        int last_non_empty_child_line = -1;
         int flag = 0;
         unsigned indent = 0;
     };
@@ -89,13 +90,6 @@ namespace AB {
         std::vector<ContainerPtr> containers;
         ContainerPtr current_container;
         ContainerPtr above_container = nullptr;
-
-        std::vector<TemporaryBoundary> non_commited_li_blanks;
-        std::vector<TemporaryBoundary> non_commited_normal_blanks;
-        std::vector<TemporaryBoundary> non_commited_boundaries;
-
-        // std::vector<SegmentInfo*>* seg_above_history;
-        // std::vector<SegmentInfo*>* seg_history;
 
         std::vector<int> offset_to_line_number;
         std::vector<int> line_number_begs;
@@ -259,6 +253,13 @@ namespace AB {
         std::string acc; // Acc is for accumulator
         enum SOLVED { NONE, PARTIAL, FULL };
         SOLVED b_solved = NONE;
+
+
+        if (above_container != nullptr) {
+            int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
+            if (line_number_diff > 1)
+                std::cout << "Warning, too much spacing" << std::endl;
+        }
 
         // Useful macros for segment analysis
 #define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
@@ -475,6 +476,11 @@ namespace AB {
         if (seg != nullptr) {
             container->indent = seg->indent;
             container->flag = seg->flags;
+            /* This 'if' is not necessary because in the code, when block_type == BLOCK_HIDDEN we have
+             * seg == nullptr, but we may put in the future other blocks with seg == nullptr */
+            if (block_type != BLOCK_HIDDEN) {
+                parent->last_non_empty_child_line = seg->line_number;
+            }
         }
         ctx->containers.push_back(container);
         ctx->current_container = *(ctx->containers.end() - 1);
@@ -571,6 +577,10 @@ namespace AB {
                 ptr->closed = true;
             }
             ctx->current_container->closed = true;
+            /* Determine the number of blank lines between the last LI and this one */
+            if (seg->line_number - above_container->last_non_empty_child_line > 2)
+                make_new_list = true;
+
             if (make_new_list) {
                 ctx->current_container = above_container->parent->parent;
             }

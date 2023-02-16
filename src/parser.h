@@ -45,6 +45,7 @@ namespace AB {
         bool is_task;
         std::string number;
         TASK_STATE task_state;
+        int level = 0;
     };
 
 
