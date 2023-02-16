@@ -58,7 +58,16 @@ namespace AB {
     struct Container;
     typedef std::shared_ptr<Container> ContainerPtr;
     struct Container {
+        /* For blocks that require fencing, e.g.
+         * ```
+         * Code block
+         * ```
+         */
         bool closed = false;
+        char marker = 0;
+        int num_markers = 0;
+        bool allowed_closing_chars = false;
+
 
         BLOCK_TYPE b_type;
         std::shared_ptr<BlockDetail> detail;
@@ -308,6 +317,24 @@ namespace AB {
                 }
                 else
                     next_utf8_char(&off);
+            }
+            else if (CH(off) == '#') {
+                int count = count_marks(ctx, off, '#');
+                if (CHECK_WS_BEFORE(off) && count > 0 && count < 7
+                    && CHECK_WS_OR_END(off + count) && CHECK_INDENT(3)) {
+                    // Valid header
+                    seg->flags = H_OPENER;
+                    seg->b_bounds.pre = seg->start;
+                    seg->b_bounds.beg = off + count;
+                    b_solved = FULL;
+                    seg->type = BLOCK_H;
+                    break;
+                }
+                else {
+                    // Paragraph
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
             }
             else if (CH(off) == '>') {
                 if (CHECK_WS_BEFORE(off) && CHECK_INDENT(get_allowed_ws(QUOTE_OPENER))) {
@@ -688,6 +715,32 @@ namespace AB {
             }
             else {
                 add_container(ctx, BLOCK_P, { seg->line_number, seg->start, seg->first_non_blank, seg->end, seg->end }, seg);
+            }
+        }
+        else if (seg->flags & H_OPENER) {
+            bool new_header = true;
+            int level = seg->b_bounds.beg - seg->b_bounds.pre;
+            /* Headers can be empty, e.g. `##`
+             * In this case, the mandatory space after is not taken into account
+             * When there is the mandatory space, b_beg should begin one char after */
+            if (seg->b_bounds.beg < seg->end) {
+                seg->b_bounds.beg++;
+            }
+
+            if (IS_BLOCK_CONTINUED(BLOCK_H)) {
+                auto detail = std::static_pointer_cast<BlockHDetail>(above_container->detail);
+                if (detail->level == level) {
+                    new_header = false;
+                    above_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end });
+                }
+                else {
+                    close_current_container(ctx);
+                }
+            }
+            if (new_header) {
+                auto detail = std::make_shared<BlockHDetail>();
+                detail->level = level;
+                add_container(ctx, BLOCK_H, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end }, seg, detail);
             }
         }
         else if (seg->flags & QUOTE_OPENER) {

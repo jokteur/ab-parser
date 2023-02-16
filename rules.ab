@@ -2,7 +2,7 @@
 
 ## Basic
 - Italic: `_italic_` or `{_italic_}` (the second is more explicit 
-and covers edge cases, like `part{_italic_})
+and covers edge cases, like `part{_italic_})`
 - Strong: `*strong*` or `{*strong*}
 - Verbatime / code: `` `verbatim` ``
 - Sub: H~2~O
@@ -26,12 +26,18 @@ Horizontal rule separation (with and without white-spaces before and after), mor
 
 -----------------
 
+# Attributes
+
+Most blocks and span can possess attributes, written like `{myattribute}`. Attributes 
+with values can be written like `{attr:value}` or `{attr=value}`. It is up to the block
+or span to use these attributes or not. Multiple attributes are separated by commas `,`.
+
 # References
 
 ## Labels and refs
 
-It is possible to labelize items and make reference to them. To labelize a header,
-simply use the attribute `{l:my label}` in the right context.
+It is possible to labelize items and make reference to them. To labelize anything,
+simply use the attribute `{l:my label}` right after the object.
 
 ### Refs
 
@@ -40,6 +46,7 @@ To make references to another document, one can use `[[document#label]]. If ther
 a document with the same name as a label in current document and one wishes to use the
 current label, it is possible to solve the problem by specifying `[[#current label]]`
 (# alone designates current document)
+
 
 ### Automatic enumeration
 Some things that can be automatically enumerated:
@@ -51,9 +58,28 @@ Some things that can be automatically enumerated:
 - Drawings
 - Citations
 
-When making reference to them, the editor can take advantage of that.
+When ones wants to override the editor enumeration preferences, one can use the attribute
+`{enum}` or `{noenum}`.
 
-## Bibliography and citation
+### Definitions
+
+A paragraph *starting* with the following regex ^\[.*\]: is considered as a definition.
+We can have footnotes, links, images and citation definitions.
+
+Definitions cannot be part of another block, e.g.
+```AB
+>[def]: this won't be a definition
+```
+
+If one wants a definition on multiple lines, use four 4-space indentation:
+
+```AB
+[my def]: paragraph
+
+    a second paragraph
+```
+
+### Bibliography and citation
 It is possible to add a bibliography element and make reference to it by simply putting
 in a new line:
 ```AB
@@ -62,12 +88,18 @@ I want to make a citation [[my citation]]
 [c:my citation]: Foo bar, Markup languages proceedings, Volume 2, p.45, 2022
 ```
 
+If the citation is in another document, one can use the `#` notation:
+
+```AB
+I want to make a citation [[document#my citation]]
+
 ### Footnotes
 It is also possible to do standard footnotes, like in markdown:
 ```AB
 I want a footnote [^foot].
 
 [^foot]: A note.
+```
 
 -----------------
 
@@ -91,13 +123,6 @@ Another link which is defined [later][link]
 
 [image]: image.png
 ```
-
------------------
-
-# Definitions
-
-A paragraph with the following regex ^\[.*\]: is considered as a definition.
-We can have footnotes, links, images and citation definitions.
 
 
 -----------------
@@ -292,33 +317,25 @@ Previous code block is interrupted by this paragraph
 
 -----------------
 
-# Raw blocks
-
-One can have raw content, called raw blocks (like in djot):
-````AB
-```{=html}
-<video width="320" height="240" controls>
-   <source src="movie.mp4" type="video/mp4">
-</video>
-```
-````
-
------------------
-
 # Latex Math
 
-Inline is surrounded by $. E.g.: `$math$`
-with escaped character: $f(x) \$ = x^2$, will give this LaTex string: `f(x) $ = x^2`
-Any other \ is taken as is: `$\mathbf(x)$` (no need to escape \)
+Latex maths can be produced with two consecutive $. Depending on the context, the
+equation will be *inline* or *display*. Inline equations always fit on one line,
+and display equations are defined by being either on multiple lines or by being
+defined apart.
 
-As a block:
 ```AB
-$$
-f(x) = x^2
-$$
+A paragraph can contain inline equations like $$f(x) = x^2$$ or display equations: $$f(x) = \\
+x^3$$.
+
+A display equation can be defined also like this:
+
+$$g(x) = \sin(x)$$
+
+$$\int \cos(x)dx$$ is not display but inline.
 ```
 
-Same escaping rules:
+Escaping rules:
 ```AB
 $$
 I write \$$
