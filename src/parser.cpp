@@ -90,7 +90,8 @@ namespace AB {
         ContainerPtr current_container;
         ContainerPtr above_container = nullptr;
 
-        std::vector<TemporaryBoundary> non_commited_blanks;
+        std::vector<TemporaryBoundary> non_commited_li_blanks;
+        std::vector<TemporaryBoundary> non_commited_normal_blanks;
         std::vector<TemporaryBoundary> non_commited_boundaries;
 
         // std::vector<SegmentInfo*>* seg_above_history;
@@ -259,7 +260,6 @@ namespace AB {
         enum SOLVED { NONE, PARTIAL, FULL };
         SOLVED b_solved = NONE;
 
-
         if (local_indent > 0 && above_container != nullptr && above_container->parent != nullptr
             && above_container->parent->parent->b_type == BLOCK_QUOTE) {
             /* Quotes can 'eat' a space after the '>'
@@ -269,12 +269,10 @@ namespace AB {
              * In case the indent won't be enough for the LI, this will be uncorrected */
             seg->b_bounds.pre--; seg->b_bounds.beg--;
             corrected_above_quote = above_container->parent->parent;
-            auto bounds = corrected_above_quote->content_boundaries.back();
-            bounds.beg--;
+            corrected_above_quote->content_boundaries.back().beg--;
             seg->start--;
             whitespace_counter++;
         }
-
 
         // Useful macros for segment analysis
 #define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
@@ -302,7 +300,6 @@ namespace AB {
                 // above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
                 // above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
                 ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, off, seg->end, seg->end}, ctx->above_container });
-                std::cout << "Boundary on line " << seg->line_number << std::endl;
                 seg->start = off;
                 select_last_child_container(ctx);
                 seg->above_list_depth++;
@@ -320,8 +317,7 @@ namespace AB {
                 if (seg->above_list_depth == 0 && corrected_above_quote != nullptr) {
                     seg->start++;
                     seg->b_bounds.pre++; seg->b_bounds.beg++;
-                    auto bounds = corrected_above_quote->content_boundaries.back();
-                    bounds.beg++;
+                    corrected_above_quote->content_boundaries.back().beg++;
                 }
             }
 
@@ -632,20 +628,28 @@ namespace AB {
 
     void commit_blanks(Context* ctx, ContainerPtr ptr = nullptr) {
         ContainerPtr current = ctx->current_container;
-        if (ptr == nullptr) {
-            for (auto& blank : ctx->non_commited_boundaries) {
-                blank.parent->content_boundaries.push_back(blank.bounds);
-                // UL
-                blank.parent->parent->content_boundaries.push_back({ blank.bounds.line_number, blank.bounds.pre, blank.bounds.pre, blank.bounds.end, blank.bounds.end });
-            }
-            for (auto& blank : ctx->non_commited_blanks) {
-                ctx->current_container = blank.parent;
-                add_container(ctx, BLOCK_HIDDEN, blank.bounds);
-                close_current_container(ctx);
-            }
+        // if (ptr == nullptr) {
+        for (auto& blank : ctx->non_commited_boundaries) {
+            blank.parent->content_boundaries.push_back(blank.bounds);
+            // UL
+            blank.parent->parent->content_boundaries.push_back({ blank.bounds.line_number, blank.bounds.pre, blank.bounds.pre, blank.bounds.end, blank.bounds.end });
         }
+        for (auto& blank : ctx->non_commited_li_blanks) {
+            ctx->current_container = blank.parent;
+            add_container(ctx, BLOCK_HIDDEN, blank.bounds);
+            close_current_container(ctx);
+        }
+        // }
+        // else {
+        //     for (auto& blank : ctx->non_commited_normal_blanks) {
+        //         ctx->current_container = blank.parent;
+        //         add_container(ctx, BLOCK_HIDDEN, blank.bounds);
+        //         close_current_container(ctx);
+        //     }
+        // }
         ctx->current_container = current;
-        ctx->non_commited_blanks.clear();
+        ctx->non_commited_li_blanks.clear();
+        ctx->non_commited_normal_blanks.clear();
         ctx->non_commited_boundaries.clear();
     }
 
@@ -688,16 +692,8 @@ namespace AB {
          */
         ContainerPtr& above_container = ctx->above_container;
 
-        if (seg->skip_segment)
-            return true;
-
-        // std::cout << "Line " << seg->line_number << " / Detected: " << block_to_name(seg->type);
-        // if (above_container != nullptr)
-        //     std::cout << " Above:" << block_to_html(above_container->b_type) << std::endl;
-        // else
-        //     std::cout << std::endl;
-
         bool set_above_to_nullptr = false;
+        int line_number_diff = 0;
         if (above_container != nullptr) {
             /* Blank lines are not necessarily detected, e.g. and empty quote `>\n`
              * This means if we want to know if above there is a blank line, we should look
@@ -715,10 +711,7 @@ namespace AB {
              * to a similar block than the current one (i.e. P).
              * */
             if (!seg->blank_line) {
-                int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
-                if (line_number_diff > 1) {
-                    set_above_to_nullptr = true;
-                }
+                line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
                 if (seg->above_list_depth > 0) {
                     // std::cout << "Commit all blanks to LI @line " << seg->line_number << std::endl;
                     commit_blanks(ctx);
@@ -732,12 +725,17 @@ namespace AB {
 
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
-        if (above_container != nullptr && above_container->flag != seg->flags) {
-            close_current_container(ctx);
-            if (above_container->b_type == BLOCK_LI) {
+        if (above_container != nullptr) {
+            if (line_number_diff > 1 || above_container->flag != seg->flags) {
                 close_current_container(ctx);
+                if (above_container->b_type == BLOCK_LI) {
+                    close_current_container(ctx);
+                }
+                set_above_to_nullptr = true;
             }
-            set_above_to_nullptr = true;
+        }
+        if (line_number_diff > 1 && !seg->blank_line) {
+            commit_blanks(ctx, ctx->current_container);
         }
 
         /* Blank lines can depend on the future, so we have to temporarily store them */
@@ -747,15 +745,16 @@ namespace AB {
             if (above_container != nullptr) {
                 parent = select_parent(above_container);
             }
-            ctx->non_commited_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, parent });
+            if (!seg->skip_segment)
+                ctx->non_commited_li_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, parent });
+            ctx->non_commited_normal_blanks.push_back({ { seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, parent });
         }
         if (set_above_to_nullptr)
             above_container = nullptr;
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
-
-        else if (seg->flags & P_OPENER) {
+        if (seg->flags & P_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_P)) {
                 above_container->content_boundaries.push_back({ seg->line_number, seg->start, seg->first_non_blank, seg->end, seg->end });
             }
