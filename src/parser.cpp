@@ -121,16 +121,13 @@ namespace AB {
         OFFSET indent = 0;
         OFFSET line_number = -1;
         int above_list_depth = 0;
-        // unsigned indent = 0;
         bool blank_line = true;
-        ContainerPtr current_container = nullptr;
-        bool has_content_after = true;
         bool skip_segment = false;
+        std::string acc; /* Accumulator */
 
         // List information
         char li_pre_marker = 0;
         char li_post_marker = 0;
-        std::string li_number;
     };
 
 
@@ -225,10 +222,26 @@ namespace AB {
         seg->li_pre_marker = CH(off);
     }
     static inline int get_allowed_ws(int flag) {
-        if (flag & QUOTE_OPENER)
+        if (flag & (QUOTE_OPENER | DEFINITION_OPENER))
             return 1;
         else
             return 3;
+    }
+    static inline bool advance_until(Context* ctx, OFFSET* off, std::string* acc, char ch) {
+        bool found_end_char = false;
+        while ((SIZE)*off < ctx->size) {
+            if (CH(*off) == '\n')
+                break;
+            if (CH(*off) == '\\')
+                continue;
+            acc += CH(ch);
+            if (CH(*off) == ch) {
+                found_end_char = true;
+                break;
+            }
+            (*off)++;
+        }
+        return found_end_char;
     }
 
     bool analyse_segment(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
@@ -271,7 +284,7 @@ namespace AB {
             acc += CH(off);
 
             /* Indent is useful for knowing when to move above_container (see explanations
-             * in process_segment) in the case of lists. Here is an example:
+             * in process_segment) in the case of lists or definitions. Here is an example:
              *
              * - > abc
              *   > def
@@ -284,10 +297,11 @@ namespace AB {
              * then we move the above_container to the child of the LI, i.e. QUOTE. This way,
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
-             /* It means that there is enough indent to be part of the LI */
+             /* It means that there is enough indent to be part of the LI or DEF */
             if (local_indent > 0 && seg->blank_line && whitespace_counter >= local_indent) {
                 above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
-                above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
+                if (above_container->b_type == BLOCK_LI)
+                    above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
                 // ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, off, seg->end, seg->end}, ctx->above_container });
                 seg->start = off;
                 select_last_child_container(ctx);
@@ -433,6 +447,35 @@ namespace AB {
                     break;
                 }
             }
+            else if (CH(off) == '[') {
+                if (!CHECK_INDENT(get_allowed_ws(DEFINITION_OPENER)) ||
+                    above_container != nullptr && above_container->parent->b_type != BLOCK_DOC) {
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
+                OFFSET start_off = off;
+                acc = "";
+                bool found_end = advance_until(ctx, &off, &acc, ']');
+                if (!found_end || CH(off + 1) != ':' || off - start_off < 2) {
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
+                else {
+                    seg->flags = DEFINITION_OPENER;
+                    b_solved = FULL;
+                    seg->indent = 4 + whitespace_counter;
+                    seg->b_bounds.pre = seg->start;
+                    seg->b_bounds.beg = off + 2;
+                    seg->b_bounds.end = off + 2;
+                    seg->b_bounds.post = off + 2;
+                    this_segment_end = off + 2;
+                    seg->acc = acc;
+                    break;
+                }
+            }
+            else if (ISANYOF3(off, ':', '`', '$')) {
+
+            }
             next_utf8_char(&off);
         }
 
@@ -444,10 +487,12 @@ namespace AB {
         }
         /* Some blank lines can be transformed into boundaries of LI */
         if (seg->blank_line && whitespace_counter < local_indent
-            && above_container != nullptr && above_container->b_type == BLOCK_LI) {
+            && above_container != nullptr && (above_container->b_type == BLOCK_LI
+                || above_container->b_type == BLOCK_DEF)) {
             // ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, seg->end, seg->end, seg->end}, ctx->above_container });
             above_container->content_boundaries.push_back({ seg->line_number, seg->start, seg->end, seg->end, seg->end });
-            above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
+            if (above_container->b_type == BLOCK_LI)
+                above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
             seg->skip_segment = true;
         }
 
@@ -455,8 +500,6 @@ namespace AB {
         if (seg->flags & LIST_OPENER && b_solved == PARTIAL) {
             if (seg->li_pre_marker == '(' && seg->li_post_marker != ')') {
                 analyse_make_p(ctx, seg->start, &this_segment_end, seg);
-                // TODO
-                std::cout << "Make p from list" << std::endl;
             }
             else {
                 /* Still need to verify if ordered list has valid enumeration
@@ -465,18 +508,13 @@ namespace AB {
                     || validate_roman_enumeration(acc)
                     || alpha_to_decimal(acc) > 0 && acc.length() < 4) {
                     b_solved = FULL;
-                    seg->li_number = acc;
+                    seg->acc = acc;
                     seg->type = BLOCK_OL;
                 }
                 else {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
-                    std::cout << "Make p from list" << std::endl;
                 }
             }
-        }
-
-        if (seg->b_bounds.beg == seg->end && seg->flags & (QUOTE_OPENER | LIST_OPENER | H_OPENER)) {
-            seg->has_content_after = false;
         }
 
         *end = this_segment_end;
@@ -525,7 +563,7 @@ namespace AB {
     bool make_list_item(Context* ctx, SegmentInfo* seg, OFFSET off) {
         ContainerPtr above_container = ctx->above_container;
 
-        bool is_ul = seg->li_number.empty();
+        bool is_ul = seg->acc.empty();
         char pre_marker = seg->li_pre_marker;
         char post_marker = seg->li_post_marker;
         ContainerPtr above_parent = (above_container != nullptr) ? above_container->parent : nullptr;
@@ -535,9 +573,9 @@ namespace AB {
         BlockOlDetail::OL_TYPE type;
         int alpha = -1; int roman = -1;
         if (!is_ul) {
-            alpha = alpha_to_decimal(seg->li_number);
-            roman = roman_to_decimal(seg->li_number);
-            if (verify_positiv_number(seg->li_number)) {
+            alpha = alpha_to_decimal(seg->acc);
+            roman = roman_to_decimal(seg->acc);
+            if (verify_positiv_number(seg->acc)) {
                 type = BlockOlDetail::OL_NUMERIC;
             }
             /* With this simple rule, we can decide between cases that are valid in both roman
@@ -609,7 +647,7 @@ namespace AB {
             }
         }
         if (make_new_list) {
-            if (seg->li_number.empty()) {
+            if (seg->acc.empty()) {
                 auto detail = std::make_shared<BlockUlDetail>();
                 detail->marker = pre_marker;
                 add_container(ctx, BLOCK_UL, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, seg, detail);
@@ -629,7 +667,7 @@ namespace AB {
         // We can now add our list item
         auto detail = std::make_shared<BlockLiDetail>();
         if (!is_ul)
-            detail->number = seg->li_number;
+            detail->number = seg->acc;
         add_container(ctx, BLOCK_LI, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end }, seg, detail);
 
         ctx->above_container = nullptr;
@@ -684,7 +722,7 @@ namespace AB {
          * the current container. */
         if (above_container != nullptr) {
             int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
-            if (line_number_diff > 1 || above_container->flag != seg->flags) {
+            if (line_number_diff > 1 || above_container->flag != seg->flags || above_container->flag & DEFINITION_OPENER) {
                 close_current_container(ctx);
                 if (above_container->b_type == BLOCK_LI) {
                     close_current_container(ctx);
@@ -750,6 +788,17 @@ namespace AB {
             else {
                 add_container(ctx, BLOCK_QUOTE, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end }, seg);
             }
+        }
+        else if (seg->flags & DEFINITION_OPENER) {
+            auto detail = std::make_shared<BlockDefDetail>();
+            detail->name = seg->acc;
+            if (seg->acc[0] == '^')
+                detail->definition_type = BlockDefDetail::DEF_FOOTNOTE;
+            else if (seg->acc[0] == 'c' && seg->acc.length() > 3 && seg->acc[1] == ':')
+                detail->definition_type = BlockDefDetail::DEF_CITATION;
+            else
+                detail->definition_type = BlockDefDetail::DEF_LINK;
+            add_container(ctx, BLOCK_DEF, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
         }
         else if (seg->flags & LIST_OPENER) {
             /* Lists are not trivial to handle, there are a lot of edge cases */

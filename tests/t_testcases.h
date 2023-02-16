@@ -22,7 +22,8 @@ private:
     bool has_entered = false;
     bool is_block_child(AB::BLOCK_TYPE b_type) {
         return b_type != AB::BLOCK_LI && b_type != AB::BLOCK_UL && b_type != AB::BLOCK_DOC
-            && b_type != AB::BLOCK_OL && b_type != AB::BLOCK_QUOTE;
+            && b_type != AB::BLOCK_OL && b_type != AB::BLOCK_QUOTE && b_type != AB::BLOCK_DEF
+            && b_type != AB::BLOCK_DIV;
     }
 public:
     ParserCheck() {

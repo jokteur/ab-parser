@@ -21,6 +21,8 @@ namespace AB {
             return "B_H";
         case BLOCK_CODE:
             return "B_CODE";
+        case BLOCK_DEF:
+            return "B_DEF";
         case BLOCK_P:
             return "B_P";
         case BLOCK_TABLE:
@@ -58,6 +60,8 @@ namespace AB {
             return "h";
         case BLOCK_CODE:
             return "code";
+        case BLOCK_DEF:
+            return "definition";
         case BLOCK_P:
             return "p";
         case BLOCK_TABLE:

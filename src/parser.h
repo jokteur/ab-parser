@@ -48,6 +48,11 @@ namespace AB {
         int level = 0;
     };
 
+    struct BlockDefDetail: public BlockDetail {
+        enum DEF_TYPE { DEF_FOOTNOTE, DEF_CITATION, DEF_LINK };
+        std::string name;
+        DEF_TYPE definition_type;
+    };
 
     struct BlockHDetail: public BlockDetail {
         unsigned char level; /* Header level (1 to 6) */
