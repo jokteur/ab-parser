@@ -614,6 +614,9 @@ namespace AB {
     bool process_segment(Context* ctx, OFFSET* off, SegmentInfo* seg) {
         bool ret = true;
 
+        if (seg->skip_segment)
+            return true;
+
         /* Above container is the critical part to take decisions on how the place
          * the newly analysed block. This pointer points to where we would be if we
          * are looking at the same level on the above line.
@@ -727,7 +730,6 @@ namespace AB {
                 off++;
             }
         }
-        std::cout << "END" << std::endl;
         return ret;
     abort:
         return ret;
