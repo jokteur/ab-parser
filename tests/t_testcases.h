@@ -121,9 +121,6 @@ TEST_SUITE("Parser") {
                 std::string name(file.filename().generic_string());
                 name = name.substr(0, name.length() - 3);
 
-                if (name != "_testbench") {
-                    exit(0);
-                }
                 // Read content of input
                 std::ifstream ifs1(file.generic_string());
                 std::string txt_input((std::istreambuf_iterator<char>(ifs1)), (std::istreambuf_iterator<char>()));

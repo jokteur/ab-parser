@@ -297,9 +297,9 @@ namespace AB {
              * */
              /* It means that there is enough indent to be part of the LI */
             if (local_indent > 0 && seg->blank_line && whitespace_counter >= local_indent) {
-                // above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
-                // above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
-                ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, off, seg->end, seg->end}, ctx->above_container });
+                above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
+                above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
+                // ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, off, seg->end, seg->end}, ctx->above_container });
                 seg->start = off;
                 select_last_child_container(ctx);
                 seg->above_list_depth++;
@@ -445,8 +445,9 @@ namespace AB {
         /* Some blank lines can be transformed into boundaries of LI */
         if (seg->blank_line && whitespace_counter < local_indent
             && above_container != nullptr && above_container->b_type == BLOCK_LI) {
-            std::cout << "Blank transformed to boundary @line " << seg->line_number << std::endl;
-            ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, seg->end, seg->end, seg->end}, ctx->above_container });
+            // ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, seg->end, seg->end, seg->end}, ctx->above_container });
+            above_container->content_boundaries.push_back({ seg->line_number, seg->start, seg->end, seg->end, seg->end });
+            above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
             seg->skip_segment = true;
         }
 
@@ -714,14 +715,15 @@ namespace AB {
                 line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
                 if (seg->above_list_depth > 0) {
                     // std::cout << "Commit all blanks to LI @line " << seg->line_number << std::endl;
-                    commit_blanks(ctx);
-                    set_above_to_nullptr = true;
+                    // commit_blanks(ctx);
+                    // set_above_to_nullptr = true;
                 }
                 else if (above_container->flag != seg->flags) {
                     // std::cout << "Don't commit blanks to LI @line " << seg->line_number << " / above: " << block_to_html(above_container->b_type) << std::endl;
                 }
             }
         }
+
 
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
@@ -735,7 +737,7 @@ namespace AB {
             }
         }
         if (line_number_diff > 1 && !seg->blank_line) {
-            commit_blanks(ctx, ctx->current_container);
+            // commit_blanks(ctx, ctx->current_container);
         }
 
         /* Blank lines can depend on the future, so we have to temporarily store them */
@@ -745,9 +747,12 @@ namespace AB {
             if (above_container != nullptr) {
                 parent = select_parent(above_container);
             }
-            if (!seg->skip_segment)
-                ctx->non_commited_li_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, parent });
-            ctx->non_commited_normal_blanks.push_back({ { seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, parent });
+            ctx->current_container = parent;
+            add_container(ctx, BLOCK_HIDDEN, { seg->line_number, seg->start, seg->start, seg->end, seg->end });
+            close_current_container(ctx);
+            // if (!seg->skip_segment)
+            //     ctx->non_commited_li_blanks.push_back({ { seg->line_number, seg->start, seg->start, seg->end, seg->end }, parent });
+            // ctx->non_commited_normal_blanks.push_back({ { seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, parent });
         }
         if (set_above_to_nullptr)
             above_container = nullptr;
