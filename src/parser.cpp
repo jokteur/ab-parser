@@ -254,13 +254,6 @@ namespace AB {
         enum SOLVED { NONE, PARTIAL, FULL };
         SOLVED b_solved = NONE;
 
-
-        if (above_container != nullptr) {
-            int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
-            if (line_number_diff > 1)
-                std::cout << "Warning, too much spacing" << std::endl;
-        }
-
         // Useful macros for segment analysis
 #define CHECK_INDENT(allowed_ws) (whitespace_counter - total_indent < allowed_ws)
 
