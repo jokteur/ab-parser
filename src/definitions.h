@@ -35,7 +35,9 @@ namespace AB {
         BLOCK_TBODY,
         BLOCK_TR,
         BLOCK_TH,
-        BLOCK_TD
+        BLOCK_TD,
+
+        BLOCK_EMPTY /* Empty block is for internal trickery, not display for outside use*/
     };
     /*
      * A sequence of spans constitute a block
@@ -65,13 +67,13 @@ namespace AB {
         /* Everything that is not considered content by markdown and is used to give information
          * about a block, i.e. delimitation markers, whitespace, special chars TEXT_BLOCK_MARKER_HIDDEN
          */
-         TEXT_BLOCK_MARKER_HIDDEN,
-         /* Everything that is not considered content by markdown and is used to give information
-          * about a span, i.e. delimitation markers is TEXT_SPAN_MARKER_HIDDEN
-          */
-          TEXT_SPAN_MARKER_HIDDEN,
-          /* Ascii chars can be escaped with \ */
-          TEXT_ESCAPE_CHAR_HIDDEN
+        TEXT_BLOCK_MARKER_HIDDEN,
+        /* Everything that is not considered content by markdown and is used to give information
+         * about a span, i.e. delimitation markers is TEXT_SPAN_MARKER_HIDDEN
+         */
+        TEXT_SPAN_MARKER_HIDDEN,
+        /* Ascii chars can be escaped with \ */
+        TEXT_ESCAPE_CHAR_HIDDEN
     };
 
     const char* block_to_name(BLOCK_TYPE type);

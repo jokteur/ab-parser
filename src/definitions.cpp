@@ -21,6 +21,8 @@ namespace AB {
             return "B_H";
         case BLOCK_CODE:
             return "B_CODE";
+        case BLOCK_LATEX:
+            return "B_LATEX";
         case BLOCK_DEF:
             return "B_DEF";
         case BLOCK_DIV:
@@ -62,6 +64,8 @@ namespace AB {
             return "h";
         case BLOCK_CODE:
             return "code";
+        case BLOCK_LATEX:
+            return "math";
         case BLOCK_DEF:
             return "definition";
         case BLOCK_DIV:

@@ -142,7 +142,6 @@ TEST_SUITE("Parser") {
                     expected_html << ifs3.rdbuf();
                 }
 
-
                 ParserCheck testcase;
                 std::string out_ast;
                 std::string out_html;

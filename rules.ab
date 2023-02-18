@@ -362,7 +362,7 @@ content
 ```
 
 Special blocks can be inside quotes and list. A special block inside a quote or list not
-closed will be closed when the parent block is closed.
+closed will be closed when the parent block is closed. Special blocks cannot be nested.
 
 Here are special blocks used by MathNotes:
 

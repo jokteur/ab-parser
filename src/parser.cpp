@@ -61,7 +61,7 @@ namespace AB {
      */
     struct RepeatedMarker {
         char marker = 0;
-        int num_markers = 0;
+        int count = 0;
         bool allow_greater_number = false;
         bool allow_chars_before_closing = false;
     };
@@ -79,7 +79,7 @@ namespace AB {
         std::vector<Boundaries> content_boundaries;
         int last_non_empty_child_line = -1;
         int flag = 0;
-        unsigned indent = 0;
+        int indent = 0;
     };
 
     struct TemporaryBoundary {
@@ -128,6 +128,8 @@ namespace AB {
         bool skip_segment = false;
         std::string acc; /* Accumulator */
         bool close_block = false;
+        bool no_content_after = false;
+        int count = 0; /* Repeated marker counts */
 
         // List information
         char li_pre_marker = 0;
@@ -200,7 +202,8 @@ namespace AB {
     static void select_last_child_container(Context* ctx) {
         if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
             ctx->above_container = *(ctx->above_container->children.end() - 1);
-            if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
+            if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL
+                || ctx->above_container->b_type == BLOCK_DIV && !ctx->above_container->closed) {
                 ctx->above_container = *(ctx->above_container->children.end() - 1);
             }
             ctx->current_container = ctx->above_container;
@@ -275,7 +278,7 @@ namespace AB {
         if (above_container != nullptr) {
             local_indent = above_container->indent;
             total_indent = local_indent;
-            if (!above_container->closed)
+            if (above_container->repeated_markers.marker)
                 repeated_markers = above_container->repeated_markers;
         }
 
@@ -283,10 +286,10 @@ namespace AB {
          * then all standard detection rules should be ignored and one should only
          * look to closing delimiters.
          * We already know that the segment will be of the flag of above */
-        if (repeated_markers.marker) {
+        if (repeated_markers.marker && !above_container->closed) {
             seg->flags = above_container->flag;
-            seg->b_bounds.pre = seg->start;
-            seg->b_bounds.beg = seg->start;
+            seg->b_bounds.end = seg->end;
+            seg->b_bounds.post = seg->end;
         }
 
         int whitespace_counter = 0;
@@ -308,6 +311,8 @@ namespace AB {
              *   > def
              * ^
          * cursor pos
+                        seg->b_bounds.end = off + num_markers;
+                        seg->b_bounds.post = off + num_markers;
              *
              * We are on the second line. above_container points to the LI, which has an
              * indent of 2 (you need two whitespace characters before the block to be part
@@ -316,7 +321,8 @@ namespace AB {
              * in process_segment(), the QUOTE can be continued as part of the LI.
              * */
              /* It means that there is enough indent to be part of the LI or DEF */
-            if (local_indent > 0 && seg->blank_line && whitespace_counter >= local_indent) {
+            if (local_indent > 0 && seg->blank_line && whitespace_counter >= local_indent
+                && !above_container->closed) {
                 above_container->content_boundaries.push_back({ seg->line_number, seg->start, off, seg->end, seg->end });
                 if (above_container->b_type == BLOCK_LI)
                     above_container->parent->content_boundaries.push_back({ seg->line_number, seg->start, seg->start, seg->end, seg->end });
@@ -354,15 +360,17 @@ namespace AB {
             else if (repeated_markers.marker) {
                 if (CH(off) == repeated_markers.marker) {
                     int count = count_marks(ctx, off, repeated_markers.marker);
-                    int num_markers = repeated_markers.num_markers;
+                    int num_markers = repeated_markers.count;
                     bool is_count_right = repeated_markers.allow_greater_number && count >= num_markers
                         || !repeated_markers.allow_greater_number && count == num_markers;
                     bool check_ws_before = repeated_markers.allow_chars_before_closing
                         || !repeated_markers.allow_chars_before_closing && CHECK_WS_BEFORE(off);
                     if (is_count_right && check_ws_before) {
                         seg->close_block = true;
-                        seg->b_bounds.end = off + num_markers;
+                        seg->flags = above_container->flag;
+                        seg->b_bounds.end = off;
                         seg->b_bounds.post = off + num_markers;
+                        break;
                     }
                 }
             }
@@ -510,11 +518,13 @@ namespace AB {
             else if (CH(off) == ':') {
                 int count = count_marks(ctx, off, ':');
                 if (CHECK_WS_BEFORE(off) && count == 3) {
+                    if (above_container != nullptr && above_container->parent->b_type == BLOCK_DIV) {
+                        seg->close_block = true;
+                    }
                     seg->flags = DIV_OPENER;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
                     this_segment_end = seg->end;
-                    // Todo, accumulator
                     // Todo, attributes ?
                     // Todo, write count
                     break;
@@ -527,7 +537,15 @@ namespace AB {
             else if (CH(off) == '$') {
                 int count = count_marks(ctx, off, '$');
                 if (CHECK_WS_BEFORE(off) && count == 2) {
-                    // Do latex maths
+                    seg->flags = LATEX_OPENER;
+                    seg->b_bounds.beg = off + 2;
+                    seg->b_bounds.end = seg->end;
+                    seg->b_bounds.post = seg->end;
+                    /* If still need to check if the block is not ended in the same line */
+                    repeated_markers.marker = '$';
+                    repeated_markers.count = 2;
+                    repeated_markers.allow_chars_before_closing = true;
+                    off++;
                 }
                 else {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
@@ -537,8 +555,12 @@ namespace AB {
             }
             else if (CH(off) == '`') {
                 int count = count_marks(ctx, off, '`');
-                if (CHECK_WS_BEFORE(off) && count > 2 && CHECK_INDENT(get_allowed_ws(DIV_OPENER))) {
-                    // Do code
+                if (CHECK_WS_BEFORE(off) && count > 2 && CHECK_INDENT(get_allowed_ws(CODE_OPENER))) {
+                    seg->flags = CODE_OPENER;
+                    seg->b_bounds.beg = off + count;
+                    seg->b_bounds.end = seg->end;
+                    seg->b_bounds.post = seg->end;
+                    seg->count = count;
                 }
                 else {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
@@ -555,7 +577,7 @@ namespace AB {
         if (whitespace_counter < local_indent && seg->first_non_blank - seg->start > get_allowed_ws(seg->flags)) {
             analyse_make_p(ctx, seg->start, &this_segment_end, seg);
         }
-        /* Some blank lines can be transformed into boundaries of LI */
+        /* Some blank lines can be transformed into boundaries of indented blocks (LI, DEF) */
         if (seg->blank_line && whitespace_counter < local_indent
             && above_container != nullptr && (above_container->b_type == BLOCK_LI
                 || above_container->b_type == BLOCK_DEF)) {
@@ -587,6 +609,11 @@ namespace AB {
             }
         }
 
+        if (seg->flags & LIST_OPENER && seg->b_bounds.beg == seg->end) {
+            seg->no_content_after = true;
+        }
+
+
         *end = this_segment_end;
 
         return ret;
@@ -594,21 +621,17 @@ namespace AB {
 
     // === Processing ===
 
-    static void add_container(Context* ctx, BLOCK_TYPE block_type, const Boundaries& bounds, SegmentInfo* seg = nullptr, std::shared_ptr<BlockDetail> detail = nullptr) {
+    static void add_container(Context* ctx, BLOCK_TYPE block_type, const Boundaries& bounds, SegmentInfo* seg, std::shared_ptr<BlockDetail> detail = nullptr) {
         ContainerPtr container = std::make_shared<Container>();
         container->b_type = block_type;
         container->content_boundaries.push_back(bounds);
         container->detail = detail;
         ContainerPtr parent = ctx->current_container;
         container->parent = parent;
-        if (seg != nullptr) {
-            container->indent = seg->indent;
-            container->flag = seg->flags;
-            /* This 'if' is not necessary because in the code, when block_type == BLOCK_HIDDEN we have
-             * seg == nullptr, but we may put in the future other blocks with seg == nullptr */
-            if (block_type != BLOCK_HIDDEN) {
-                parent->last_non_empty_child_line = seg->line_number;
-            }
+        container->indent = seg->indent;
+        container->flag = seg->flags;
+        if (block_type != BLOCK_HIDDEN) {
+            parent->last_non_empty_child_line = seg->line_number;
         }
         ctx->containers.push_back(container);
         ctx->current_container = *(ctx->containers.end() - 1);
@@ -739,6 +762,9 @@ namespace AB {
         if (!is_ul)
             detail->number = seg->acc;
         add_container(ctx, BLOCK_LI, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->end, seg->end }, seg, detail);
+        if (seg->no_content_after) {
+            add_container(ctx, BLOCK_EMPTY, {}, seg);
+        }
 
         ctx->above_container = nullptr;
         return true;
@@ -801,7 +827,6 @@ namespace AB {
             }
         }
 
-        /* Blank lines can depend on the future, so we have to temporarily store them */
         if (seg->blank_line) {
             ContainerPtr parent = ctx->containers[0]; // By default, blank lines belong to ROOT
             /* Blank lines should always be commited to parent above container */
@@ -809,7 +834,7 @@ namespace AB {
                 parent = select_parent(above_container);
             }
             ctx->current_container = parent;
-            add_container(ctx, BLOCK_HIDDEN, { seg->line_number, seg->start, seg->start, seg->end, seg->end });
+            add_container(ctx, BLOCK_HIDDEN, { seg->line_number, seg->start, seg->start, seg->end, seg->end }, seg);
             close_current_container(ctx);
         }
         if (set_above_to_nullptr)
@@ -875,15 +900,49 @@ namespace AB {
             make_list_item(ctx, seg, *off);
         }
         else if (seg->flags & DIV_OPENER) {
-            if (IS_BLOCK_CONTINUED(DIV_OPENER)) {
-                above_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
+            if (seg->close_block) {
+                ctx->current_container->closed = true;
+                ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
             }
             else {
                 add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
-                ctx->current_container->repeated_markers = RepeatedMarker{ ':', 3, false, false };
+                add_container(ctx, BLOCK_EMPTY, {}, seg);
             }
+        }
+        else if (seg->flags & LATEX_OPENER) {
             if (seg->close_block) {
-                above_container->closed = true;
+                ctx->current_container->closed = true;
+            }
+            if (IS_BLOCK_CONTINUED(BLOCK_LATEX)) {
+                ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
+            }
+            else {
+                add_container(ctx, BLOCK_LATEX, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
+                ctx->current_container->repeated_markers = RepeatedMarker{
+                    .marker = '$',
+                    .count = 2,
+                    .allow_greater_number = true,
+                    .allow_chars_before_closing = false
+                };
+                // TODO: what about attributes after ?
+                // Authorized: attributes after, but no text!! (otherwise --> paragraph)
+            }
+        }
+        else if (seg->flags & CODE_OPENER) {
+            if (seg->close_block) {
+                ctx->current_container->closed = true;
+            }
+            if (IS_BLOCK_CONTINUED(BLOCK_CODE)) {
+                ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
+            }
+            else {
+                add_container(ctx, BLOCK_CODE, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
+                int count = seg->count;
+                ctx->current_container->repeated_markers = RepeatedMarker{
+                    .marker = '`',
+                    .count = count,
+                    .allow_greater_number = false
+                };
             }
         }
 
@@ -926,6 +985,8 @@ namespace AB {
         bool ret = true;
         CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->detail));
         for (auto child : ptr->children) {
+            if (child->b_type == BLOCK_EMPTY)
+                continue;
             CHECK_AND_RET(enter_block(ctx, child));
         }
         CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
