@@ -54,20 +54,23 @@ namespace AB {
 #define LEAVE_SPAN() ctx->parser.leave_span();
 #define TEXT(type, begin, end) ctx->parser.text((type), (arg));
 
+    /* For blocks that require fencing, e.g.
+     * ```
+     * Code block
+     * ```
+     */
+    struct RepeatedMarker {
+        char marker = 0;
+        int num_markers = 0;
+        bool allow_greater_number = false;
+        bool allow_chars_before_closing = false;
+    };
 
     struct Container;
     typedef std::shared_ptr<Container> ContainerPtr;
     struct Container {
-        /* For blocks that require fencing, e.g.
-         * ```
-         * Code block
-         * ```
-         */
         bool closed = false;
-        char marker = 0;
-        int num_markers = 0;
-        bool allowed_closing_chars = false;
-
+        RepeatedMarker repeated_markers;
 
         BLOCK_TYPE b_type;
         std::shared_ptr<BlockDetail> detail;
@@ -124,6 +127,7 @@ namespace AB {
         bool blank_line = true;
         bool skip_segment = false;
         std::string acc; /* Accumulator */
+        bool close_block = false;
 
         // List information
         char li_pre_marker = 0;
@@ -264,13 +268,27 @@ namespace AB {
         seg->b_bounds.post = -1;
         seg->blank_line = true; // Unless otherwise, the default line is a blank line
 
+        RepeatedMarker repeated_markers;
         int local_indent = 0;
         int total_indent = 0;
         ContainerPtr corrected_above_quote = nullptr;
         if (above_container != nullptr) {
             local_indent = above_container->indent;
             total_indent = local_indent;
+            if (!above_container->closed)
+                repeated_markers = above_container->repeated_markers;
         }
+
+        /* If above is a block which has open/close delimiters (repeating markers),
+         * then all standard detection rules should be ignored and one should only
+         * look to closing delimiters.
+         * We already know that the segment will be of the flag of above */
+        if (repeated_markers.marker) {
+            seg->flags = above_container->flag;
+            seg->b_bounds.pre = seg->start;
+            seg->b_bounds.beg = seg->start;
+        }
+
         int whitespace_counter = 0;
         std::string acc; // Acc is for accumulator
         enum SOLVED { NONE, PARTIAL, FULL };
@@ -309,6 +327,7 @@ namespace AB {
                 above_container = ctx->above_container;
                 total_indent += above_container->indent;
                 local_indent = above_container->indent;
+                repeated_markers = above_container->repeated_markers;
             }
 
             if (!(ISWHITESPACE(off) || CH(off) == '\n') && seg->blank_line) {
@@ -324,13 +343,28 @@ namespace AB {
                 whitespace_counter += 4;
             }
             else if (CH(off) == '\\') {
-                if (off == seg->start) {
+                if (off == seg->start && !repeated_markers.marker) {
                     // Paragraph
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
                 }
                 else
                     next_utf8_char(&off);
+            }
+            else if (repeated_markers.marker) {
+                if (CH(off) == repeated_markers.marker) {
+                    int count = count_marks(ctx, off, repeated_markers.marker);
+                    int num_markers = repeated_markers.num_markers;
+                    bool is_count_right = repeated_markers.allow_greater_number && count >= num_markers
+                        || !repeated_markers.allow_greater_number && count == num_markers;
+                    bool check_ws_before = repeated_markers.allow_chars_before_closing
+                        || !repeated_markers.allow_chars_before_closing && CHECK_WS_BEFORE(off);
+                    if (is_count_right && check_ws_before) {
+                        seg->close_block = true;
+                        seg->b_bounds.end = off + num_markers;
+                        seg->b_bounds.post = off + num_markers;
+                    }
+                }
             }
             else if (CH(off) == '#') {
                 int count = count_marks(ctx, off, '#');
@@ -473,7 +507,43 @@ namespace AB {
                     break;
                 }
             }
-            else if (ISANYOF3(off, ':', '`', '$')) {
+            else if (CH(off) == ':') {
+                int count = count_marks(ctx, off, ':');
+                if (CHECK_WS_BEFORE(off) && count == 3) {
+                    seg->flags = DIV_OPENER;
+                    seg->b_bounds.end = seg->end;
+                    seg->b_bounds.post = seg->end;
+                    this_segment_end = seg->end;
+                    // Todo, accumulator
+                    // Todo, attributes ?
+                    // Todo, write count
+                    break;
+                }
+                else {
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
+            }
+            else if (CH(off) == '$') {
+                int count = count_marks(ctx, off, '$');
+                if (CHECK_WS_BEFORE(off) && count == 2) {
+                    // Do latex maths
+                }
+                else {
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
+
+            }
+            else if (CH(off) == '`') {
+                int count = count_marks(ctx, off, '`');
+                if (CHECK_WS_BEFORE(off) && count > 2 && CHECK_INDENT(get_allowed_ws(DIV_OPENER))) {
+                    // Do code
+                }
+                else {
+                    analyse_make_p(ctx, seg->start, &this_segment_end, seg);
+                    break;
+                }
 
             }
             next_utf8_char(&off);
@@ -803,6 +873,18 @@ namespace AB {
         else if (seg->flags & LIST_OPENER) {
             /* Lists are not trivial to handle, there are a lot of edge cases */
             make_list_item(ctx, seg, *off);
+        }
+        else if (seg->flags & DIV_OPENER) {
+            if (IS_BLOCK_CONTINUED(DIV_OPENER)) {
+                above_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
+            }
+            else {
+                add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
+                ctx->current_container->repeated_markers = RepeatedMarker{ ':', 3, false, false };
+            }
+            if (seg->close_block) {
+                above_container->closed = true;
+            }
         }
 
         return ret;

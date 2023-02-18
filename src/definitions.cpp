@@ -23,6 +23,8 @@ namespace AB {
             return "B_CODE";
         case BLOCK_DEF:
             return "B_DEF";
+        case BLOCK_DIV:
+            return "B_DIV";
         case BLOCK_P:
             return "B_P";
         case BLOCK_TABLE:
@@ -62,6 +64,8 @@ namespace AB {
             return "code";
         case BLOCK_DEF:
             return "definition";
+        case BLOCK_DIV:
+            return "div";
         case BLOCK_P:
             return "p";
         case BLOCK_TABLE:
