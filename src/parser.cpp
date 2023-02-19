@@ -28,7 +28,8 @@
 #include "parser.h"
 #include "internal.h"
 #include "definitions.h"
-#include "blocks.h"
+#include "parse_blocks.h"
+#include "parse_spans.h"
 #include "helpers.h"
 
 #include <iostream>
@@ -86,7 +87,6 @@ namespace AB {
     abort:
         return ret;
     }
-
 
     bool parse(const CHAR* text, SIZE size, const Parser* parser) {
         Context ctx;
