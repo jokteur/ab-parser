@@ -4,7 +4,7 @@
 #include <unordered_set>
 #include <vector>
 
-#include "internal_helpers.h"
+#include "internal.h"
 
 namespace AB {
     /* Roman and alpha enumeration. */

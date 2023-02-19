@@ -1,12 +1,15 @@
 #pragma once
 #include <string.h>
+#include <memory>
+
+#include "definitions.h"
 
 namespace AB {
-     /*****************
-      ***  Helpers  ***
-      *****************/
+      /*****************
+       ***  Helpers  ***
+       *****************/
 
-      /* Character accessors. */
+       /* Character accessors. */
 #define CH(off)                 (ctx->text[(off)])
 #define STR(off)                (ctx->text + (off))
 
@@ -51,4 +54,65 @@ namespace AB {
 #define CHECK_WS_OR_END(off) ((off) >= (int)ctx->size || ((off) < (int)ctx->size && ISWHITESPACE((off))) || CH((off)) == '\n')
 #define CHECK_WS_BEFORE(off) (seg->first_non_blank >= (off))
 #define CHECK_SPACE_AFTER(off) (off < (OFFSET)ctx->size && CH(off + 1) == ' ')
+
+      /* Parsing functions*/
+#define CHECK_AND_RET(fct) \
+    ret = (fct); \
+    if (!ret) \
+        goto abort;
+#define ENTER_BLOCK(type, arg) ctx->parser.enter_block((type), (arg));
+#define LEAVE_BLOCK() ctx->parser.leave_block();
+#define ENTER_SPAN(type, arg) ctx->parser.enter_span((type), (arg));
+#define LEAVE_SPAN() ctx->parser.leave_span();
+#define TEXT(type, begin, end) ctx->parser.text((type), (arg));
+
+
+      /* For blocks that require fencing, e.g.
+       * ```
+       * Code block
+       * ```
+       */
+      struct RepeatedMarker {
+            char marker = 0;
+            int count = 0;
+            bool allow_greater_number = false;
+            bool allow_chars_before_closing = false;
+      };
+
+      struct Container;
+      typedef std::shared_ptr<Container> ContainerPtr;
+      struct Container {
+            bool closed = false;
+            RepeatedMarker repeated_markers;
+
+            BLOCK_TYPE b_type;
+            std::shared_ptr<BlockDetail> detail;
+            ContainerPtr parent = nullptr;
+            std::vector<ContainerPtr> children;
+            std::vector<Boundaries> content_boundaries;
+            int last_non_empty_child_line = -1;
+            int flag = 0;
+            int indent = 0;
+      };
+
+      /**************
+      *** Context ***
+      ***************/
+      /* The context is used throughout all the code and keeps stored
+       * all the necessary informations for parsing
+      */
+      struct Context {
+            /* Information given by the user */
+            const CHAR* text;
+            SIZE size;
+            const Parser* parser;
+
+            std::vector<ContainerPtr> containers;
+            ContainerPtr current_container;
+            ContainerPtr above_container = nullptr;
+
+            std::vector<int> offset_to_line_number;
+            std::vector<int> line_number_begs;
+      };
+
 }
