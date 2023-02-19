@@ -1,11 +1,10 @@
 This is a test
 aa
-- :::div figure
+- ::: figure  {ncols=2,nrows=3,center}
   bla
 
   qwd
   qwqn
 a
-$$ asdasd
-wefwef$$     
+$$ asdasd wefwef$   $  $ $ $  $$
 a

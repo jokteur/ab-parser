@@ -1,4 +1,5 @@
 #include "parse_blocks.h"
+#include "parse_commons.h"
 #include "internal.h"
 
 namespace AB {
@@ -34,6 +35,8 @@ namespace AB {
         bool close_block = false;
         bool no_content_after = false;
         int count = 0; /* Repeated marker counts */
+
+        Attributes attributes;
 
         // List information
         char li_pre_marker = 0;
@@ -77,17 +80,6 @@ namespace AB {
             return ctx->size;
         else
             return ctx->line_number_begs[current_line_number + 1] - 1;
-    }
-    int count_marks(Context* ctx, OFFSET off, char mark) {
-        int counter = 0;
-        while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
-            if (CH(off) == mark)
-                counter++;
-            else
-                break;
-            off++;
-        }
-        return counter;
     }
     bool check_for_whitespace_after(Context* ctx, OFFSET off) {
         while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
@@ -137,21 +129,65 @@ namespace AB {
         else
             return 3;
     }
-    static inline bool advance_until(Context* ctx, OFFSET* off, std::string* acc, char ch) {
-        bool found_end_char = false;
-        while ((SIZE)*off < ctx->size) {
-            if (CH(*off) == '\n')
-                break;
-            if (CH(*off) == '\\')
-                continue;
-            acc += CH(ch);
-            if (CH(*off) == ch) {
-                found_end_char = true;
+
+    static inline void get_name_and_attributes(Context* ctx, OFFSET* off, std::string& name, Attributes& attributes) {
+        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+            if (CH(*off) == '{') {
+                (*off)++;
+                attributes = parse_attributes(ctx, off);
                 break;
             }
-            (*off)++;
+            else if (ISWHITESPACE(*off))
+                continue;
+            else
+                name += CH(*off);
         }
-        return found_end_char;
+    }
+
+    /**
+     * Checks at off if there are closing delimiters given the set of rules in the arguments
+     *
+     * It optionally also parses the attributes
+     *
+     * Returns the number of closing delimiters found
+     * If after the closing delimiters there are non-authorised chars, then it returns -1
+     * If it hasn't found any closing delimiter, then it return 0
+    */
+    static inline int check_for_closing_delimiters(Context* ctx, OFFSET off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes, int attempt = 0) {
+        if (attempt > RECURSE_LIMIT) {
+            return 0;
+        }
+
+        int count = count_marks(ctx, off, marker);
+        bool is_count_right = allow_greater_number && count >= num_markers
+            || !allow_greater_number && count == num_markers;
+        bool check_ws_before = allow_chars_before_closing
+            || !allow_chars_before_closing && CHECK_WS_BEFORE(off);
+        bool non_authorized_text_after = false;
+        /* Check for attributes after ending */
+        off += count;
+        skip_whitespace(ctx, &off);
+        if (CH(off) == '{' && allow_attributes) {
+            off++;
+            seg->attributes = parse_attributes(ctx, &off);
+            if (seg->attributes.empty()) {
+                non_authorized_text_after = true;
+            }
+        }
+        else if (CH(off) == marker) {
+            return check_for_closing_delimiters(ctx, off, seg, marker, num_markers, allow_greater_number, allow_chars_before_closing, allow_attributes, attempt + 1);
+        }
+        else if (!CHECK_WS_OR_END(off)) {
+            non_authorized_text_after = true;
+        }
+
+        if (is_count_right && check_ws_before && !non_authorized_text_after) {
+            return count;
+        }
+        else if (non_authorized_text_after)
+            return -1;
+        else
+            return 0;
     }
 
     bool analyse_segment(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
@@ -181,7 +217,7 @@ namespace AB {
         if (above_container != nullptr) {
             local_indent = above_container->indent;
             total_indent = local_indent;
-            if (above_container->repeated_markers.marker)
+            if (above_container->repeated_markers.marker && !above_container->closed)
                 repeated_markers = above_container->repeated_markers;
         }
 
@@ -262,17 +298,20 @@ namespace AB {
             }
             else if (repeated_markers.marker) {
                 if (CH(off) == repeated_markers.marker) {
-                    int count = count_marks(ctx, off, repeated_markers.marker);
-                    int num_markers = repeated_markers.count;
-                    bool is_count_right = repeated_markers.allow_greater_number && count >= num_markers
-                        || !repeated_markers.allow_greater_number && count == num_markers;
-                    bool check_ws_before = repeated_markers.allow_chars_before_closing
-                        || !repeated_markers.allow_chars_before_closing && CHECK_WS_BEFORE(off);
-                    if (is_count_right && check_ws_before) {
+                    /* Try to see if the block is closed with pre-defined rules */
+                    int num = check_for_closing_delimiters(
+                        ctx, off, seg,
+                        repeated_markers.marker,
+                        repeated_markers.count,
+                        repeated_markers.allow_greater_number,
+                        repeated_markers.allow_chars_before_closing,
+                        repeated_markers.allow_attributes
+                    );
+                    if (num) {
                         seg->close_block = true;
                         seg->flags = above_container->flag;
                         seg->b_bounds.end = off;
-                        seg->b_bounds.post = off + num_markers;
+                        seg->b_bounds.post = off + num;
                         break;
                     }
                 }
@@ -400,7 +439,7 @@ namespace AB {
                 }
                 OFFSET start_off = off;
                 acc = "";
-                bool found_end = advance_until(ctx, &off, &acc, ']');
+                bool found_end = advance_until(ctx, &off, acc, ']');
                 if (!found_end || CH(off + 1) != ':' || off - start_off < 2) {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
@@ -424,12 +463,13 @@ namespace AB {
                     if (above_container != nullptr && above_container->parent->b_type == BLOCK_DIV) {
                         seg->close_block = true;
                     }
+                    off += count;
                     seg->flags = DIV_OPENER;
+                    seg->b_bounds.beg = seg->end;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
                     this_segment_end = seg->end;
-                    // Todo, attributes ?
-                    // Todo, write count
+                    get_name_and_attributes(ctx, &off, seg->acc, seg->attributes);
                     break;
                 }
                 else {
@@ -438,18 +478,24 @@ namespace AB {
                 }
             }
             else if (CH(off) == '$') {
-                int count = count_marks(ctx, off, '$');
-                if (CHECK_WS_BEFORE(off) && count == 2) {
+                OFFSET tmp_off = off;
+                int count = count_marks(ctx, &off, '$');
+                /* Try to advance until the end of the line to see if the block is already close */
+                advance_until(ctx, &off, acc, '$');
+                int closing = check_for_closing_delimiters(ctx, off, seg, '$', 2, false, true, true);
+                if (CHECK_WS_BEFORE(tmp_off) && count == 2 && closing >= 0) {
                     seg->flags = LATEX_OPENER;
-                    seg->b_bounds.beg = off + 2;
+                    seg->b_bounds.beg = tmp_off + count;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
-                    /* If still need to check if the block is not ended in the same line */
-                    repeated_markers.marker = '$';
-                    repeated_markers.count = 2;
-                    repeated_markers.allow_chars_before_closing = true;
+                    if (closing) {
+                        seg->close_block = true;
+                        seg->b_bounds.end = off + closing - 2;
+                    }
                     off++;
+                    break;
                 }
+
                 else {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
                     break;
@@ -464,6 +510,7 @@ namespace AB {
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
                     seg->count = count;
+                    get_name_and_attributes(ctx, &off, seg->acc, seg->attributes);
                 }
                 else {
                     analyse_make_p(ctx, seg->start, &this_segment_end, seg);
@@ -533,6 +580,7 @@ namespace AB {
         container->parent = parent;
         container->indent = seg->indent;
         container->flag = seg->flags;
+        container->attributes = seg->attributes;
         if (block_type != BLOCK_HIDDEN) {
             parent->last_non_empty_child_line = seg->line_number;
         }
@@ -813,9 +861,6 @@ namespace AB {
             }
         }
         else if (seg->flags & LATEX_OPENER) {
-            if (seg->close_block) {
-                ctx->current_container->closed = true;
-            }
             if (IS_BLOCK_CONTINUED(BLOCK_LATEX)) {
                 ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
             }
@@ -825,16 +870,15 @@ namespace AB {
                     .marker = '$',
                     .count = 2,
                     .allow_greater_number = true,
-                    .allow_chars_before_closing = false
+                    .allow_chars_before_closing = true,
+                    .allow_attributes = true
                 };
-                // TODO: what about attributes after ?
-                // Authorized: attributes after, but no text!! (otherwise --> paragraph)
             }
-        }
-        else if (seg->flags & CODE_OPENER) {
             if (seg->close_block) {
                 ctx->current_container->closed = true;
             }
+        }
+        else if (seg->flags & CODE_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_CODE)) {
                 ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
             }
@@ -844,8 +888,13 @@ namespace AB {
                 ctx->current_container->repeated_markers = RepeatedMarker{
                     .marker = '`',
                     .count = count,
-                    .allow_greater_number = false
+                    .allow_greater_number = false,
+                    .allow_chars_before_closing = false,
+                    .allow_attributes = false
                 };
+            }
+            if (seg->close_block) {
+                ctx->current_container->closed = true;
             }
         }
 

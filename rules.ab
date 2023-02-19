@@ -7,9 +7,9 @@ and covers edge cases, like `part{_italic_})`
 - Verbatime / code: `` `verbatim` ``
 - Sub: H~2~O
 - Sup: 10^-34^
-- Highlighted: {=highlighted=}
-- Underline: {+insert+}
-- Deleted: {-deleted-}
+- Highlight: {=highlighted=}
+- Underline: {+underlined+}
+- Delete: {-deleted-}
 
 ## Escaping characters
 Characters can be escaped using `\`. 
@@ -352,8 +352,9 @@ TODO
 
 # Special Blocks
 
-A special block starts with three consecutive : followed by a description on one line,
-ends with three consecutive :.
+A special block starts with three consecutive `:` followed by a name and optional attributes.
+Whitespaces are ignored for the name.
+The block is finished with three consecutive `:` or an interruption of a parents block.
 
 ```AB
 ::: name-of-block

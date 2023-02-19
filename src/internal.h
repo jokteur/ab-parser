@@ -77,6 +77,7 @@ namespace AB {
             int count = 0;
             bool allow_greater_number = false;
             bool allow_chars_before_closing = false;
+            bool allow_attributes = true;
       };
 
       struct Container;
@@ -84,6 +85,8 @@ namespace AB {
       struct Container {
             bool closed = false;
             RepeatedMarker repeated_markers;
+
+            Attributes attributes;
 
             BLOCK_TYPE b_type;
             std::shared_ptr<BlockDetail> detail;

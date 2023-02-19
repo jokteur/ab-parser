@@ -11,6 +11,8 @@ namespace AB {
     typedef int OFFSET;
     typedef char CHAR;
 
+#define RECURSE_LIMIT 32
+
     /* A block represents a part of the herarchy like a paragraph
      * or a list
      */
