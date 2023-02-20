@@ -27,7 +27,7 @@ private:
     }
 public:
     ParserCheck() {
-        parser.enter_block = [&](AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, AB::BlockDetailPtr detail) -> bool {
+        parser.enter_block = [&](AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) -> bool {
             if (b_type != AB::BLOCK_DOC)
                 html << std::endl;
             has_entered = true;
@@ -67,6 +67,21 @@ public:
                 ast << ", " << bound.end;
                 ast << ", " << bound.post << "} ";
             }
+
+            if (!attributes.empty()) {
+                ast << " {";
+                bool first = true;
+                for (auto& pair : attributes) {
+                    if (!first)
+                        ast << ",";
+                    ast << pair.first;
+                    if (!pair.second.empty())
+                        ast << "=" << pair.second;
+                    first = false;
+                }
+                ast << "}";
+            }
+
             ast << std::endl;
 
             return true;

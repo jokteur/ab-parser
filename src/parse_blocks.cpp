@@ -866,13 +866,12 @@ namespace AB {
             }
             else {
                 add_container(ctx, BLOCK_LATEX, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
-                ctx->current_container->repeated_markers = RepeatedMarker{
-                    .marker = '$',
-                    .count = 2,
-                    .allow_greater_number = true,
-                    .allow_chars_before_closing = true,
-                    .allow_attributes = true
-                };
+                auto& r = ctx->current_container->repeated_markers;
+                r.marker = '$';
+                r.count = 2;
+                r.allow_greater_number = true;
+                r.allow_chars_before_closing = true;
+                r.allow_attributes = true;
             }
             if (seg->close_block) {
                 ctx->current_container->closed = true;
@@ -885,13 +884,12 @@ namespace AB {
             else {
                 add_container(ctx, BLOCK_CODE, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
                 int count = seg->count;
-                ctx->current_container->repeated_markers = RepeatedMarker{
-                    .marker = '`',
-                    .count = count,
-                    .allow_greater_number = false,
-                    .allow_chars_before_closing = false,
-                    .allow_attributes = false
-                };
+                auto& r = ctx->current_container->repeated_markers;
+                r.marker = '`';
+                r.count = count;
+                r.allow_greater_number = false;
+                r.allow_chars_before_closing = false;
+                r.allow_attributes = false;
             }
             if (seg->close_block) {
                 ctx->current_container->closed = true;

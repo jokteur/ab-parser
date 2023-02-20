@@ -38,7 +38,7 @@
 namespace AB {
     bool enter_block(Context* ctx, ContainerPtr ptr) {
         bool ret = true;
-        CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->detail));
+        CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->attributes, ptr->detail));
         for (auto child : ptr->children) {
             if (child->b_type == BLOCK_EMPTY)
                 continue;

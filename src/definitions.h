@@ -105,9 +105,7 @@ namespace AB {
 
     typedef std::unordered_map<std::string, std::string> Attributes;
 
-    struct BlockDetail {
-        std::vector<Boundaries> bounds;
-    };
+    struct BlockDetail {    };
     typedef std::shared_ptr<BlockDetail> BlockDetailPtr;
 
     struct BlockCodeDetail: public BlockDetail {
@@ -170,9 +168,9 @@ namespace AB {
      * Parsing functions
      * ================= */
 
-    typedef std::function<bool(BLOCK_TYPE type, const std::vector<Boundaries>& bounds, std::shared_ptr<BlockDetail> detail)> BlockFct;
+    typedef std::function<bool(BLOCK_TYPE type, const std::vector<Boundaries>& bounds, const Attributes& attributes, std::shared_ptr<BlockDetail> detail)> BlockFct;
     typedef std::function<bool(BLOCK_TYPE type)> LeaveBlockFct;
-    typedef std::function<bool(SPAN_TYPE type, const Boundaries& bounds, std::shared_ptr<SpanDetail> detail)> SpanFct;
+    typedef std::function<bool(SPAN_TYPE type, const Boundaries& bounds, const Attributes& attributes, std::shared_ptr<SpanDetail> detail)> SpanFct;
     typedef std::function<bool(SPAN_TYPE type)> LeaveSpanFct;
     typedef std::function<bool(TEXT_TYPE type, const OFFSET begin, const OFFSET end)> TextFct;
 
