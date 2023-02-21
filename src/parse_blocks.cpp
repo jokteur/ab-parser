@@ -152,29 +152,30 @@ namespace AB {
      * If after the closing delimiters there are non-authorised chars, then it returns -1
      * If it hasn't found any closing delimiter, then it return 0
     */
-    static inline int check_for_closing_delimiters(Context* ctx, OFFSET off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes, int attempt = 0) {
-        if (attempt > RECURSE_LIMIT) {
-            return 0;
-        }
-
-        int count = count_marks(ctx, off, marker);
-        bool is_count_right = allow_greater_number && count >= num_markers
-            || !allow_greater_number && count == num_markers;
+    static inline int check_for_closing_delimiters(Context* ctx, OFFSET off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes) {
         bool check_ws_before = allow_chars_before_closing
             || !allow_chars_before_closing && CHECK_WS_BEFORE(off);
+        int count = count_marks(ctx, &off, marker);
+        while (count < num_markers && off < seg->end) {
+            if (!allow_chars_before_closing)
+                return 0;
+            std::string dummy;
+            bool ret = advance_until(ctx, &off, dummy, marker);
+            if (!ret)
+                return 0;
+            count = count_marks(ctx, &off, marker);
+        }
+        bool is_count_right = allow_greater_number && count >= num_markers
+            || !allow_greater_number && count == num_markers;
         bool non_authorized_text_after = false;
         /* Check for attributes after ending */
-        off += count;
-        skip_whitespace(ctx, &off);
+
         if (CH(off) == '{' && allow_attributes) {
             off++;
             seg->attributes = parse_attributes(ctx, &off);
             if (seg->attributes.empty()) {
                 non_authorized_text_after = true;
             }
-        }
-        else if (CH(off) == marker) {
-            return check_for_closing_delimiters(ctx, off, seg, marker, num_markers, allow_greater_number, allow_chars_before_closing, allow_attributes, attempt + 1);
         }
         else if (!CHECK_WS_OR_END(off)) {
             non_authorized_text_after = true;
@@ -457,11 +458,12 @@ namespace AB {
                 }
             }
             else if (CH(off) == ':') {
-                int count = count_marks(ctx, off, ':');
                 OFFSET before_off = off;
+                int count = count_marks(ctx, &off, ':');
                 skip_whitespace(ctx, &off);
                 if (CHECK_WS_BEFORE(before_off) && count == 3 && off < seg->end) {
                     seg->flags = DIV_OPENER;
+                    seg->b_bounds.pre = seg->start;
                     seg->b_bounds.beg = seg->end;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
@@ -509,6 +511,8 @@ namespace AB {
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
                     seg->count = count;
+                    off += count;
+                    seg->acc = "";
                     get_name_and_attributes(ctx, &off, seg->acc, seg->attributes);
                 }
                 else {
@@ -849,16 +853,9 @@ namespace AB {
             make_list_item(ctx, seg, *off);
         }
         else if (seg->flags & DIV_OPENER) {
-            if (seg->close_block) {
-                ctx->current_container->closed = true;
-                ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
-            }
-            else {
-                auto detail = std::make_shared<BlockDivDetail>();
-                detail->name = seg->acc;
-                add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
-                add_container(ctx, BLOCK_EMPTY, {}, seg);
-            }
+            auto detail = std::make_shared<BlockDivDetail>();
+            detail->name = seg->acc;
+            add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
         }
         else if (seg->flags & LATEX_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_LATEX)) {

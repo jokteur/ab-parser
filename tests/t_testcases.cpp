@@ -13,7 +13,7 @@ void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::
 
     if (b_type == AB::BLOCK_DIV) {
         auto info = std::static_pointer_cast<AB::BlockDivDetail>(detail);
-        html << " name=\"" << info->name << "\"";
+        html << " class=\"" << info->name << "\"";
     }
     else if (b_type == AB::BLOCK_CODE) {
         auto info = std::static_pointer_cast<AB::BlockCodeDetail>(detail);
@@ -36,8 +36,12 @@ void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::
     if (is_block_child(b_type)) {
         bool first = true;
         for (auto bound : bounds) {
-            if (!first)
-                html << "<br />";
+            if (!first) {
+                if (b_type != AB::BLOCK_LATEX)
+                    html << "<br />";
+                else
+                    html << " ";
+            }
             for (int i = bound.beg;i < bound.end;i++) {
                 html << txt[i];
             }
