@@ -97,8 +97,7 @@ namespace AB {
     static void select_last_child_container(Context* ctx) {
         if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
             ctx->above_container = *(ctx->above_container->children.end() - 1);
-            if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL
-                || ctx->above_container->b_type == BLOCK_DIV && !ctx->above_container->closed) {
+            if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
                 ctx->above_container = *(ctx->above_container->children.end() - 1);
             }
             ctx->current_container = ctx->above_container;
@@ -459,16 +458,16 @@ namespace AB {
             }
             else if (CH(off) == ':') {
                 int count = count_marks(ctx, off, ':');
-                if (CHECK_WS_BEFORE(off) && count == 3) {
-                    if (above_container != nullptr && above_container->parent->b_type == BLOCK_DIV) {
-                        seg->close_block = true;
-                    }
-                    off += count;
+                OFFSET before_off = off;
+                skip_whitespace(ctx, &off);
+                if (CHECK_WS_BEFORE(before_off) && count == 3 && off < seg->end) {
                     seg->flags = DIV_OPENER;
                     seg->b_bounds.beg = seg->end;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
+                    seg->indent = 4 + ctx->current_container->indent;
                     this_segment_end = seg->end;
+                    seg->acc = "";
                     get_name_and_attributes(ctx, &off, seg->acc, seg->attributes);
                     break;
                 }
@@ -528,9 +527,9 @@ namespace AB {
             analyse_make_p(ctx, seg->start, &this_segment_end, seg);
         }
         /* Some blank lines can be transformed into boundaries of indented blocks (LI, DEF) */
-        if (seg->blank_line && whitespace_counter < local_indent
+        if (seg->blank_line && whitespace_counter <= local_indent
             && above_container != nullptr && (above_container->b_type == BLOCK_LI
-                || above_container->b_type == BLOCK_DEF)) {
+                || above_container->b_type == BLOCK_DEF || above_container->b_type == BLOCK_DIV)) {
             // ctx->non_commited_boundaries.push_back({ {seg->line_number, seg->start, seg->end, seg->end, seg->end}, ctx->above_container });
             above_container->content_boundaries.push_back({ seg->line_number, seg->start, seg->end, seg->end, seg->end });
             if (above_container->b_type == BLOCK_LI)
@@ -562,7 +561,6 @@ namespace AB {
         if (seg->flags & LIST_OPENER && seg->b_bounds.beg == seg->end) {
             seg->no_content_after = true;
         }
-
 
         *end = this_segment_end;
 
@@ -856,7 +854,9 @@ namespace AB {
                 ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
             }
             else {
-                add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
+                auto detail = std::make_shared<BlockDivDetail>();
+                detail->name = seg->acc;
+                add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
                 add_container(ctx, BLOCK_EMPTY, {}, seg);
             }
         }
@@ -882,11 +882,12 @@ namespace AB {
                 ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
             }
             else {
-                add_container(ctx, BLOCK_CODE, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);
-                int count = seg->count;
+                auto detail = std::make_shared<BlockCodeDetail>();
+                detail->lang = seg->acc;
+                add_container(ctx, BLOCK_CODE, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
                 auto& r = ctx->current_container->repeated_markers;
                 r.marker = '`';
-                r.count = count;
+                r.count = seg->count;
                 r.allow_greater_number = false;
                 r.allow_chars_before_closing = false;
                 r.allow_attributes = false;

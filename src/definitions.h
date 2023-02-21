@@ -105,7 +105,7 @@ namespace AB {
 
     typedef std::unordered_map<std::string, std::string> Attributes;
 
-    struct BlockDetail {    };
+    struct BlockDetail {};
     typedef std::shared_ptr<BlockDetail> BlockDetailPtr;
 
     struct BlockCodeDetail: public BlockDetail {
@@ -137,6 +137,10 @@ namespace AB {
         enum DEF_TYPE { DEF_FOOTNOTE, DEF_CITATION, DEF_LINK };
         std::string name;
         DEF_TYPE definition_type;
+    };
+
+    struct BlockDivDetail: public BlockDetail {
+        std::string name;
     };
 
     struct BlockHDetail: public BlockDetail {
