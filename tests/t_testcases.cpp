@@ -1,4 +1,5 @@
 #include "t_testcases.h"
+#include <map>
 
 void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
     if (b_type != AB::BLOCK_DOC)
@@ -20,7 +21,10 @@ void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::
         html << " lang=\"" << info->lang << "\"";
     }
 
-    for (auto& pair : attributes) {
+    std::map<std::string, std::string> ordered_attrs;
+    for (auto& pair : attributes)
+        ordered_attrs[pair.first] = pair.second;
+    for (auto& pair : ordered_attrs) {
         html << " " << pair.first;
         if (!pair.second.empty())
             html << "=\"" << pair.second << "\"";
@@ -34,18 +38,22 @@ void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::
     }
 
     if (is_block_child(b_type)) {
-        bool first = true;
+        int j = 0;
         for (auto bound : bounds) {
-            if (!first) {
-                if (b_type != AB::BLOCK_LATEX)
-                    html << "<br />";
-                else
+            if (b_type == AB::BLOCK_LATEX) {
+                if (j > 0)
                     html << " ";
             }
+            else if (b_type == AB::BLOCK_CODE) {
+                if (j > 1 && j < bounds.size() - 1)
+                    html << '\n';
+            }
+            else if (j > 0)
+                html << "<br />";
             for (int i = bound.beg;i < bound.end;i++) {
                 html << txt[i];
             }
-            first = false;
+            j++;
         }
     }
 }

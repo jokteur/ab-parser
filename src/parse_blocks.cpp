@@ -152,32 +152,34 @@ namespace AB {
      * If after the closing delimiters there are non-authorised chars, then it returns -1
      * If it hasn't found any closing delimiter, then it return 0
     */
-    static inline int check_for_closing_delimiters(Context* ctx, OFFSET off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes) {
+    static inline int check_for_closing_delimiters(Context* ctx, OFFSET* off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes) {
         bool check_ws_before = allow_chars_before_closing
-            || !allow_chars_before_closing && CHECK_WS_BEFORE(off);
-        int count = count_marks(ctx, &off, marker);
-        while (count < num_markers && off < seg->end) {
-            if (!allow_chars_before_closing)
-                return 0;
-            std::string dummy;
-            bool ret = advance_until(ctx, &off, dummy, marker);
-            if (!ret)
-                return 0;
-            count = count_marks(ctx, &off, marker);
+            || !allow_chars_before_closing && CHECK_WS_BEFORE(*off);
+
+        int count = 0;
+        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+            if (CH(*off) == '\\')
+                count = -1;
+            else if (CH(*off) == marker)
+                count++;
+            else if (count < num_markers)
+                count = 0;
+            else
+                break;
         }
         bool is_count_right = allow_greater_number && count >= num_markers
             || !allow_greater_number && count == num_markers;
         bool non_authorized_text_after = false;
         /* Check for attributes after ending */
 
-        if (CH(off) == '{' && allow_attributes) {
-            off++;
-            seg->attributes = parse_attributes(ctx, &off);
+        if (CH(*off) == '{' && allow_attributes) {
+            (*off)++;
+            seg->attributes = parse_attributes(ctx, off);
             if (seg->attributes.empty()) {
                 non_authorized_text_after = true;
             }
         }
-        else if (!CHECK_WS_OR_END(off)) {
+        else if (!CHECK_WS_OR_END(*off)) {
             non_authorized_text_after = true;
         }
 
@@ -299,8 +301,9 @@ namespace AB {
             else if (repeated_markers.marker) {
                 if (CH(off) == repeated_markers.marker) {
                     /* Try to see if the block is closed with pre-defined rules */
+                    OFFSET off_before = off;
                     int num = check_for_closing_delimiters(
-                        ctx, off, seg,
+                        ctx, &off, seg,
                         repeated_markers.marker,
                         repeated_markers.count,
                         repeated_markers.allow_greater_number,
@@ -310,8 +313,8 @@ namespace AB {
                     if (num) {
                         seg->close_block = true;
                         seg->flags = above_container->flag;
-                        seg->b_bounds.end = off;
-                        seg->b_bounds.post = off + num;
+                        seg->b_bounds.end = off_before;
+                        seg->b_bounds.post = off;
                         break;
                     }
                 }
@@ -457,9 +460,11 @@ namespace AB {
                     break;
                 }
             }
+
             else if (CH(off) == ':') {
                 OFFSET before_off = off;
                 int count = count_marks(ctx, &off, ':');
+
                 skip_whitespace(ctx, &off);
                 if (CHECK_WS_BEFORE(before_off) && count == 3 && off < seg->end) {
                     seg->flags = DIV_OPENER;
@@ -483,7 +488,7 @@ namespace AB {
                 int count = count_marks(ctx, &off, '$');
                 /* Try to advance until the end of the line to see if the block is already close */
                 advance_until(ctx, &off, acc, '$');
-                int closing = check_for_closing_delimiters(ctx, off, seg, '$', 2, false, true, true);
+                int closing = check_for_closing_delimiters(ctx, &off, seg, '$', 2, false, true, true);
                 if (CHECK_WS_BEFORE(tmp_off) && count == 2 && closing >= 0) {
                     seg->flags = LATEX_OPENER;
                     seg->b_bounds.beg = tmp_off + count;
@@ -491,7 +496,7 @@ namespace AB {
                     seg->b_bounds.post = seg->end;
                     if (closing) {
                         seg->close_block = true;
-                        seg->b_bounds.end = off + closing - 2;
+                        seg->b_bounds.end = off - closing;
                     }
                     off++;
                     break;
@@ -507,7 +512,7 @@ namespace AB {
                 int count = count_marks(ctx, off, '`');
                 if (CHECK_WS_BEFORE(off) && count > 2 && CHECK_INDENT(get_allowed_ws(CODE_OPENER))) {
                     seg->flags = CODE_OPENER;
-                    seg->b_bounds.beg = off + count;
+                    seg->b_bounds.beg = seg->end;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
                     seg->count = count;
@@ -856,6 +861,8 @@ namespace AB {
             auto detail = std::make_shared<BlockDivDetail>();
             detail->name = seg->acc;
             add_container(ctx, BLOCK_DIV, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg, detail);
+            seg->flags = 0;
+            add_container(ctx, BLOCK_EMPTY, { seg->line_number }, seg);
         }
         else if (seg->flags & LATEX_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_LATEX)) {
