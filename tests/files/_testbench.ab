@@ -1,10 +1,10 @@
 This is a test
-aa
+a
 - ::: figure  {ncols=2,nrows=3,center}
-  bla
-
-  qwd
-  qwqn
+      bla
+      
+      qwd
+    qwqn
 a
 $$ asdasd wefwef$   $  $ $ $  $$
 a

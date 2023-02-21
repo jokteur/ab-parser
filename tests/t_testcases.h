@@ -25,96 +25,14 @@ private:
             && b_type != AB::BLOCK_OL && b_type != AB::BLOCK_QUOTE && b_type != AB::BLOCK_DEF
             && b_type != AB::BLOCK_DIV;
     }
+
 public:
-    ParserCheck() {
-        parser.enter_block = [&](AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) -> bool {
-            if (b_type != AB::BLOCK_DOC)
-                html << std::endl;
-            has_entered = true;
+    ParserCheck();
+    void print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail);
+    void print_html_close(AB::BLOCK_TYPE b_type);
+    void print_ast(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail);
 
-            for (int i = 0;i < level;i++) {
-                ast << "  ";
-                html << "  ";
-            }
-            level++;
-
-            ast << AB::block_to_name(b_type);
-            html << "<" << AB::block_to_html(b_type);
-
-            if (b_type == AB::BLOCK_HR) {
-                html << "/>";
-            }
-            else {
-                html << ">";
-            }
-
-            if (is_block_child(b_type)) {
-                bool first = true;
-                for (auto bound : bounds) {
-                    if (!first)
-                        html << "<br />";
-                    for (int i = bound.beg;i < bound.end;i++) {
-                        html << txt[i];
-                    }
-                    first = false;
-                }
-            }
-
-            for (auto bound : bounds) {
-                ast << " {" << bound.line_number;
-                ast << ": " << bound.pre;
-                ast << ", " << bound.beg;
-                ast << ", " << bound.end;
-                ast << ", " << bound.post << "} ";
-            }
-
-            if (!attributes.empty()) {
-                ast << " {";
-                bool first = true;
-                for (auto& pair : attributes) {
-                    if (!first)
-                        ast << ",";
-                    ast << pair.first;
-                    if (!pair.second.empty())
-                        ast << "=" << pair.second;
-                    first = false;
-                }
-                ast << "}";
-            }
-
-            ast << std::endl;
-
-            return true;
-        };
-        parser.leave_block = [&](AB::BLOCK_TYPE b_type) -> bool {
-            level--;
-            if (!is_block_child(b_type)) {
-                html << std::endl;
-                for (int i = 0;i < level;i++) {
-                    html << "  ";
-                }
-                html << "</" << AB::block_to_html(b_type) << ">";
-            }
-            else if (b_type != AB::BLOCK_HR)
-                html << "</" << AB::block_to_html(b_type) << ">";
-            has_entered = false;
-            return true;
-        };
-    }
-
-    int check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html) {
-        txt = txt_input;
-        AB::parse(txt_input.c_str(), (AB::SIZE)txt_input.length(), &parser);
-        out_ast = ast.str();
-        out_html = html.str();
-
-        int ret = 0;
-        if (out_ast != expected_ast)
-            ret |= AST_FAILED;
-        if (out_html != expected_html)
-            ret |= HTML_FAILED;
-        return ret;
-    }
+    int check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html);
 };
 
 TEST_SUITE("Parser") {

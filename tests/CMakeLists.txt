@@ -1,4 +1,4 @@
-add_executable(${PROJECT_NAME}_tests main.cpp)
+add_executable(${PROJECT_NAME}_tests main.cpp t_testcases.cpp)
 target_link_libraries(${PROJECT_NAME}_tests doctest::doctest ${PROJECT_NAME})
 
 add_custom_command(TARGET ${PROJECT_NAME}_tests PRE_BUILD
