@@ -54,14 +54,13 @@ namespace AB {
     enum SPAN_TYPE {
         SPAN_EM,
         SPAN_STRONG,
-        SPAN_A,
         SPAN_IMG,
         SPAN_CODE,
         SPAN_LATEXMATH,
-        SPAN_LATEXMATH_DISPLAY,
         SPAN_WIKILINK,
-        SPAN_SUP,
-        SPAN_SUB,
+        SPAN_URL,
+        // SPAN_SUP,
+        // SPAN_SUB,
         SPAN_U,
         SPAN_DEL,
         SPAN_HIGHLIGHT

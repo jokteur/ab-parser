@@ -31,4 +31,7 @@ namespace AB {
      * Accumulates the characters in acc
     */
     bool advance_until(Context* ctx, OFFSET* off, std::string& acc, char ch);
+
+    /* Returns true if the block type is a leaf (meaning it contains text)*/
+    bool is_leaf_block(BLOCK_TYPE b_type);
 }

@@ -30,6 +30,7 @@
 #include "definitions.h"
 #include "parse_blocks.h"
 #include "parse_spans.h"
+#include "parse_commons.h"
 #include "helpers.h"
 
 #include <iostream>
@@ -44,13 +45,16 @@ namespace AB {
                 continue;
             CHECK_AND_RET(enter_block(ctx, child));
         }
+        if (is_leaf_block(ptr->b_type)) {
+            parse_spans(ctx, ptr);
+        }
         CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
         return ret;
     abort:
         return ret;
     }
 
-    bool parse_spans(Context* ctx) {
+    bool send_blocks(Context* ctx) {
         bool ret = true;
         ret = enter_block(ctx, *(ctx->containers.begin()));
 
@@ -82,7 +86,7 @@ namespace AB {
         /* First, process all the blocks that we
         * can find */
         CHECK_AND_RET(parse_blocks(ctx));
-        CHECK_AND_RET(parse_spans(ctx));
+        CHECK_AND_RET(send_blocks(ctx));
 
     abort:
         return ret;

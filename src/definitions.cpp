@@ -93,8 +93,8 @@ namespace AB {
             return "S_EM";
         case SPAN_STRONG:
             return "S_STRONG";
-        case SPAN_A:
-            return "S_A";
+        case SPAN_URL:
+            return "S_URL";
         case SPAN_IMG:
             return "S_IMG";
         case SPAN_CODE:
@@ -103,8 +103,6 @@ namespace AB {
             return "S_DEL";
         case SPAN_LATEXMATH:
             return "S_LATEXMATH";
-        case SPAN_LATEXMATH_DISPLAY:
-            return "S_LATEXMATH_DISPLAY";
         case SPAN_WIKILINK:
             return "S_WIKILINK";
         case SPAN_U:

@@ -99,4 +99,16 @@ namespace AB {
         }
         return found_end_char;
     }
+
+    bool is_leaf_block(BLOCK_TYPE b_type) {
+        switch (b_type) {
+        case BLOCK_CODE:
+        case BLOCK_H:
+        case BLOCK_LATEX:
+        case BLOCK_P:
+            return true;
+        default:
+            return false;
+        }
+    }
 }
