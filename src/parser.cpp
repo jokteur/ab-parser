@@ -45,7 +45,8 @@ namespace AB {
                 continue;
             CHECK_AND_RET(enter_block(ctx, child));
         }
-        if (is_leaf_block(ptr->b_type)) {
+        if (is_leaf_block(ptr->b_type)
+            && ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
             parse_spans(ctx, ptr);
         }
         CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));

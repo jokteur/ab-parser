@@ -52,16 +52,17 @@ namespace AB {
      * It is generally inline
      */
     enum SPAN_TYPE {
+        SPAN_EMPTY,
         SPAN_EM,
         SPAN_STRONG,
         SPAN_IMG,
         SPAN_CODE,
         SPAN_LATEXMATH,
-        SPAN_WIKILINK,
+        SPAN_REF,
         SPAN_URL,
         // SPAN_SUP,
         // SPAN_SUB,
-        SPAN_U,
+        SPAN_UNDERLINE,
         SPAN_DEL,
         SPAN_HIGHLIGHT
     };
@@ -86,6 +87,7 @@ namespace AB {
     const char* block_to_name(BLOCK_TYPE type);
     const char* block_to_html(BLOCK_TYPE type);
     const char* span_to_name(SPAN_TYPE type);
+    const char* span_to_html(SPAN_TYPE type);
     const char* text_to_name(TEXT_TYPE type);
 
 
@@ -165,6 +167,7 @@ namespace AB {
     struct SpanWikiLink: public SpanDetail {
         std::string target;
     };
+    typedef std::shared_ptr<SpanDetail> SpanDetailPtr;
 
 
     /* =================
@@ -173,7 +176,7 @@ namespace AB {
 
     typedef std::function<bool(BLOCK_TYPE type, const std::vector<Boundaries>& bounds, const Attributes& attributes, std::shared_ptr<BlockDetail> detail)> BlockFct;
     typedef std::function<bool(BLOCK_TYPE type)> LeaveBlockFct;
-    typedef std::function<bool(SPAN_TYPE type, const Boundaries& bounds, const Attributes& attributes, std::shared_ptr<SpanDetail> detail)> SpanFct;
+    typedef std::function<bool(SPAN_TYPE type, const std::vector<Boundaries>& bounds, const Attributes& attributes, std::shared_ptr<SpanDetail> detail)> SpanFct;
     typedef std::function<bool(SPAN_TYPE type)> LeaveSpanFct;
     typedef std::function<bool(TEXT_TYPE type, const OFFSET begin, const OFFSET end)> TextFct;
 

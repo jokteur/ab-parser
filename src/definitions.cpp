@@ -103,12 +103,37 @@ namespace AB {
             return "S_DEL";
         case SPAN_LATEXMATH:
             return "S_LATEXMATH";
-        case SPAN_WIKILINK:
-            return "S_WIKILINK";
-        case SPAN_U:
-            return "S_U";
+        case SPAN_REF:
+            return "S_REF";
+        case SPAN_UNDERLINE:
+            return "S_UNDERLINE";
         case SPAN_HIGHLIGHT:
             return "S_HIGHLIGHT";
+        };
+        return "";
+    }
+    const char* span_to_html(SPAN_TYPE type) {
+        switch (type) {
+        case SPAN_EM:
+            return "em";
+        case SPAN_STRONG:
+            return "strong";
+        case SPAN_URL:
+            return "a";
+        case SPAN_IMG:
+            return "img";
+        case SPAN_CODE:
+            return "code";
+        case SPAN_DEL:
+            return "del";
+        case SPAN_LATEXMATH:
+            return "math";
+        case SPAN_REF:
+            return "ref";
+        case SPAN_UNDERLINE:
+            return "u";
+        case SPAN_HIGHLIGHT:
+            return "highlight";
         };
         return "";
     }
