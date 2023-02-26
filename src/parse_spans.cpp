@@ -438,10 +438,10 @@ namespace AB {
                 /* Insert text from inside span */
                 auto& bound = mark.start_ptr->true_bounds.back();
                 TEXT_TYPE type = TEXT_NORMAL;
-                if (mark.s_type == SPAN_LATEXMATH) {
+                if (mark.s_type == S_LATEX) {
                     type = TEXT_LATEX;
                 }
-                else if (mark.s_type == SPAN_CODE) {
+                else if (mark.s_type == S_VERBATIME) {
                     type = TEXT_CODE;
                 }
                 CHECK_AND_RET(create_text(ctx, bound_it, bound_end, type, text_off, bound.end));

@@ -105,9 +105,6 @@ void ParserCheck::print_span_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Bou
 void ParserCheck::print_span_html_close(AB::SPAN_TYPE s_type) {
     if (s_type != AB::SPAN_IMG) {
         html << "</" << AB::span_to_html(s_type) << ">";
-        for (int i = 0;i < level;i++) {
-            html << "  ";
-        }
     }
 }
 
