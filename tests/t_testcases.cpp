@@ -36,6 +36,12 @@ void ParserCheck::print_block_html_enter(AB::BLOCK_TYPE b_type, const std::vecto
     else {
         html << ">";
     }
+
+    if (b_type == AB::BLOCK_HIDDEN) {
+        auto& bound = bounds.front();
+        for (int i = bound.beg;i < bound.end;i++)
+            html << txt[i];
+    }
 }
 void ParserCheck::print_block_ast(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
     for (int i = 0;i < level;i++) {
@@ -108,11 +114,11 @@ void ParserCheck::print_span_html_close(AB::SPAN_TYPE s_type) {
     }
 }
 
-void ParserCheck::print_text_ast(const std::vector<AB::Boundaries>& bounds) {
+void ParserCheck::print_text_ast(AB::TEXT_TYPE t_type, const std::vector<AB::Boundaries>& bounds) {
     for (int i = 0;i < level;i++) {
         ast << "  ";
     }
-    ast << "TEXT";
+    ast << AB::text_to_name(t_type);
     for (auto bound : bounds) {
         ast << " {" << bound.line_number;
         ast << ": " << bound.pre;
@@ -148,7 +154,7 @@ ParserCheck::ParserCheck() {
         return true;
     };
     parser.text = [&](AB::TEXT_TYPE t_type, const std::vector<AB::Boundaries>& bounds) {
-        this->print_text_ast(bounds);
+        this->print_text_ast(t_type, bounds);
         int j = 0;
         for (auto bound : bounds) {
             if (t_type == AB::TEXT_LATEX) {
@@ -156,7 +162,7 @@ ParserCheck::ParserCheck() {
                     html << " ";
             }
             else if (t_type == AB::TEXT_CODE) {
-                if (j > 1 && j < bounds.size() - 1)
+                if (j > 0)
                     html << '\n';
             }
             else if (j > 0)

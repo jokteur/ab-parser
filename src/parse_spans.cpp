@@ -319,7 +319,9 @@ namespace AB {
                 diff = last_line - b_it->line_number;
             }
             b_it++;
-            bounds.push_back({ b_it->line_number, b_it->beg, b_it->beg, end, end });
+            if (b_it->beg < end) {
+                bounds.push_back({ b_it->line_number, b_it->beg, b_it->beg, end, end });
+            }
         }
         else {
             bounds.push_back({ b_it->line_number, start, start, end, end });

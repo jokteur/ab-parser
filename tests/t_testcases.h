@@ -36,7 +36,7 @@ public:
     void print_span_html_close(AB::SPAN_TYPE s_type);
     void print_span_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail);
 
-    void print_text_ast(const std::vector<AB::Boundaries>& bounds);
+    void print_text_ast(AB::TEXT_TYPE t_type, const std::vector<AB::Boundaries>& bounds);
 
     int check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html);
 };

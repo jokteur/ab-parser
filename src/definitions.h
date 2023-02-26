@@ -78,6 +78,7 @@ namespace AB {
     const char* block_to_html(BLOCK_TYPE type);
     const char* span_to_name(SPAN_TYPE type);
     const char* span_to_html(SPAN_TYPE type);
+    const char* text_to_name(TEXT_TYPE type);
 
     /* ======================
      * Block and span details

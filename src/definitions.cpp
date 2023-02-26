@@ -137,4 +137,15 @@ namespace AB {
         };
         return "";
     }
+    const char* text_to_name(TEXT_TYPE type) {
+        switch (type) {
+        case TEXT_CODE:
+            return "TEXT_CODE";
+        case TEXT_LATEX:
+            return "TEXT_LATEX";
+        case TEXT_NORMAL:
+            return "TEXT;";
+        };
+        return "";
+    }
 }
