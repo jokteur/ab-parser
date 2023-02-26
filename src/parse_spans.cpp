@@ -57,6 +57,41 @@ namespace AB {
     static const int SELECT_ALL = ~0;
     static const int SELECT_ALL_LINKS = S_LINK | S_LINKDEF | S_AUTOLINK | S_REF | S_INSERTED_REF | S_IMG;
 
+    /**
+     * @brief Mark stores the rules for span detection
+     *
+     * s_type
+     *     name (flag) of the span
+     * open
+     *     rule for opening the span
+     * closing
+     *     rule for closing the span
+     * need_ws_or_punct
+     *     when true, the opening must be preceeded by a punctuation or a
+     *     whitespace and after the closing a punctuation or a whitespace
+     *     is needed
+     * dont_allow_inside
+     *     flags of spans not allowed inside. e.g. a link cannot contain other links
+     * repeat
+     *     if true, then the opening and closing chars can be repeated as many times
+     *     as needed
+     * count
+     *     stores the number of repeat chars if the previous attribute is true
+     * second_close
+     *     sometimes, spans are defined by a second closing rule
+     *     e.g. [abc](def)  -->  open = "[", close = "](", second_close =")"
+     *
+     * The other attributes are used for solving the spans
+     *
+     * solved:
+     *     when true, it means that the mark has been solved (i.e. opening and closing found)
+     * is_closing:
+     *     if true, then mark is used as a closing landmark in the mark_chain
+     * pre, beg, line_number:
+     *     starting bounds of the span
+     * true_bounds:
+     *     once the span is solved, we calculate the true boundaries and store them there
+     */
     struct Mark {
         int s_type = 0;
         std::string open;
@@ -70,7 +105,10 @@ namespace AB {
         /* Once solved, we store this information */
         bool solved = false;
         bool is_closing = false;
-        Boundaries bounds;
+        OFFSET pre = 0;
+        OFFSET beg = 0;
+        int line_number = 0;
+        std::vector<Boundaries> true_bounds;
     };
 
     static const Mark marks[] = {
@@ -154,26 +192,54 @@ namespace AB {
             auto it = mark_chain.rbegin();
             auto current = mark_chain.rbegin();
             std::vector<std::list<Mark>::iterator> to_erase;
-            for (;it != mark_chain.rend();it++) {
-                if (it->solved && !(it->s_type & mark.dont_allow_inside))
+            while (it != mark_chain.rend()) {
+                if (it->solved && !(it->s_type & mark.dont_allow_inside)) {
+                    it++;
                     continue;
-                if (it->s_type == mark.s_type
-                    || it->s_type == mark.s_type && it->repeat && it->count == mark.repeat) {
+                }
+                if (it->s_type == mark.s_type && it->count == mark_count) {
                     break;
                 }
                 to_erase.push_back(std::next(it).base());
+                it++;
             }
             if (it != mark_chain.rend() && !mark_chain.empty()) {
                 it->solved = true;
 
                 Mark tmp_mark(*it);
-                tmp_mark.bounds.end = *off + i;
-                tmp_mark.bounds.post = jump_to;
+                /* Need to calculate the true boundaries of the span
+                 * A span can be on multiple lines, this is why we need
+                 * to use content_boundaries */
+                OFFSET b_end = *off;
+                OFFSET b_post = jump_to;
+                int line_number = ctx->offset_to_line_number[b_end];
+                if (line_number > tmp_mark.line_number) {
+                    auto& bound_it = content_bounds.begin();
+                    while (bound_it != content_bounds.end()) {
+                        if (bound_it->line_number == it->line_number)
+                            break;
+                        bound_it++;
+                    }
+                    /* Starting boundary */
+                    it->true_bounds.push_back(Boundaries{ it->line_number, tmp_mark.pre, tmp_mark.beg, bound_it->end, bound_it->end });
+                    bound_it++;
+                    /* Inbetween boundaries */
+                    while (bound_it != content_bounds.end()) {
+                        if (bound_it->line_number == line_number)
+                            break;
+                        it->true_bounds.push_back(Boundaries{ bound_it->line_number, bound_it->beg, bound_it->beg, bound_it->end, bound_it->end });
+                        bound_it++;
+                    }
+                    /* Last boundary */
+                    it->true_bounds.push_back(Boundaries{ line_number, bound_it->beg, bound_it->beg, b_end, b_post });
+                }
+                else {
+                    it->true_bounds.push_back(Boundaries{ line_number, tmp_mark.pre, tmp_mark.beg, b_end, b_post });
+                }
                 tmp_mark.solved = true;
                 tmp_mark.is_closing = true;
-                for (auto tmp_it : to_erase) {
-                    mark_chain.erase(tmp_it);
-                }
+                for (auto& m : to_erase)
+                    mark_chain.erase(m);
                 mark_chain.push_back(tmp_mark);
                 *off = jump_to;
                 return true;
@@ -183,7 +249,7 @@ namespace AB {
         return false;
     }
 
-    inline bool open_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET off, OFFSET end, bool ws_or_punct_before, int* opened_flags) {
+    inline int open_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET off, OFFSET end, bool ws_or_punct_before, int* opened_flags) {
         bool found_match = true;
         OFFSET i = 0;
         int mark_count = 0;
@@ -207,20 +273,20 @@ namespace AB {
 
         if (found_match) {
             Mark tmp_mark(mark);
+            tmp_mark.line_number = ctx->offset_to_line_number[off];
+            tmp_mark.pre = off;
             if (mark.repeat) {
                 tmp_mark.count = mark_count;
-                tmp_mark.bounds = Boundaries{ ctx->offset_to_line_number[off], off, off + mark_count };
+                tmp_mark.beg = off + mark_count;
             }
             else {
-                tmp_mark.bounds = Boundaries{ ctx->offset_to_line_number[off], off, off + (OFFSET)mark.open.length() };
+                tmp_mark.beg = off + (OFFSET)mark.open.length();
             }
             mark_chain.push_back(tmp_mark);
             *opened_flags |= mark.s_type;
-            return true;
+            return mark_count;
         }
-        else {
-            return false;
-        }
+        return 0;
     }
     bool parse_spans(Context* ctx, ContainerPtr ptr) {
         bool ret = true;
@@ -239,9 +305,8 @@ namespace AB {
                 else if (ISPUNCT(off))
                     prev_is_punctuation = true;
 
-                int a = 0;
-
                 bool success = false;
+                int advance = 0;
                 for (auto& mark : marks) {
                     /* Search first for closing marks */
                     if (opened_flags & mark.s_type) {
@@ -251,10 +316,13 @@ namespace AB {
                         }
                     }
                     /* Search then for opening marks */
-                    bool success = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, &opened_flags);
+                    int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, &opened_flags);
+                    if (mark_count > advance)
+                        advance = mark_count;
+                    else advance = 1;
                 }
                 if (!success)
-                    off++;
+                    off += advance;
             }
         }
 
@@ -273,7 +341,7 @@ namespace AB {
             if (!mark.is_closing) {
                 CHECK_AND_RET(ctx->parser->enter_span(
                     flag_to_type(mark.s_type),
-                    { mark.bounds },
+                    { mark.true_bounds },
                     Attributes{},
                     nullptr
                 ));
