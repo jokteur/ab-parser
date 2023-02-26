@@ -149,23 +149,9 @@ namespace AB {
     };
     // TODO, tables
 
-    struct SpanDetail {
-        /* A span can have pre and post information (before text begins)
-         * E.g. [foo](my title) is an URL, where pre->start contains [
-         * and end->post contains ](my title)
-         */
-        Boundaries bounds;
-    };
+    struct SpanDetail {};
     struct SpanADetail: public SpanDetail {
         std::string href;
-        std::string title;
-    };
-    struct SpanImgDetail: public SpanDetail {
-        std::string src;
-        std::string title;
-    };
-    struct SpanWikiLink: public SpanDetail {
-        std::string target;
     };
     typedef std::shared_ptr<SpanDetail> SpanDetailPtr;
 

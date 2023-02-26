@@ -241,9 +241,9 @@ namespace AB {
                 }
                 tmp_mark.solved = true;
                 tmp_mark.is_closing = true;
+                tmp_mark.start_ptr = &(*it);
                 for (auto& m : to_erase)
                     mark_chain.erase(m);
-                tmp_mark.start_ptr = &(*it);
                 mark_chain.push_back(tmp_mark);
                 *off = jump_to;
                 return true;
@@ -352,13 +352,33 @@ namespace AB {
             mark_chain.erase(it);
         }
 
-        for (auto& mark : mark_chain) {
+        for (auto it = mark_chain.begin();it != mark_chain.end();it++) {
+            auto& mark = *it;
             if (!mark.is_closing) {
+                SpanDetailPtr detail = nullptr;
+                if (mark.s_type == S_LINK || mark.s_type == S_LINKDEF) {
+                    OFFSET start = mark.true_bounds.back().end + 2;
+                    OFFSET end = mark.true_bounds.back().post - 1;
+                    auto tmp = std::make_shared<SpanADetail>();
+                    for (OFFSET off = start;off < end;off++) {
+                        tmp->href += CH(off);
+                    }
+                    detail = tmp;
+                }
+                else if (mark.s_type == S_AUTOLINK) {
+                    OFFSET start = mark.true_bounds.back().pre;
+                    OFFSET end = mark.true_bounds.back().end;
+                    auto tmp = std::make_shared<SpanADetail>();
+                    for (OFFSET off = start;off < end;off++) {
+                        tmp->href += CH(off);
+                    }
+                    detail = tmp;
+                }
                 CHECK_AND_RET(ctx->parser->enter_span(
                     flag_to_type(mark.s_type),
-                    { mark.true_bounds },
+                    mark.true_bounds,
                     mark.attributes,
-                    nullptr
+                    detail
                 ));
             }
             else {
