@@ -1,7 +1,7 @@
 #include "t_testcases.h"
 #include <map>
 
-void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
+void ParserCheck::print_block_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
     if (b_type != AB::BLOCK_DOC)
         html << std::endl;
     has_entered = true;
@@ -36,28 +36,8 @@ void ParserCheck::print_html_enter(AB::BLOCK_TYPE b_type, const std::vector<AB::
     else {
         html << ">";
     }
-
-    if (is_block_child(b_type)) {
-        int j = 0;
-        for (auto bound : bounds) {
-            if (b_type == AB::BLOCK_LATEX) {
-                if (j > 0)
-                    html << " ";
-            }
-            else if (b_type == AB::BLOCK_CODE) {
-                if (j > 1 && j < bounds.size() - 1)
-                    html << '\n';
-            }
-            else if (j > 0)
-                html << "<br />";
-            for (int i = bound.beg;i < bound.end;i++) {
-                html << txt[i];
-            }
-            j++;
-        }
-    }
 }
-void ParserCheck::print_ast(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
+void ParserCheck::print_block_ast(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) {
     for (int i = 0;i < level;i++) {
         ast << "  ";
     }
@@ -71,7 +51,7 @@ void ParserCheck::print_ast(AB::BLOCK_TYPE b_type, const std::vector<AB::Boundar
     }
     ast << std::endl;
 }
-void ParserCheck::print_html_close(AB::BLOCK_TYPE b_type) {
+void ParserCheck::print_block_html_close(AB::BLOCK_TYPE b_type) {
     if (!is_block_child(b_type)) {
         html << std::endl;
         for (int i = 0;i < level;i++) {
@@ -84,21 +64,13 @@ void ParserCheck::print_html_close(AB::BLOCK_TYPE b_type) {
         html << "</" << AB::block_to_html(b_type) << ">";
 }
 
-void ParserCheck::print_html_enter(AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail) {
-    for (int i = 0;i < level;i++) {
-        html << "  ";
-    }
-
+void ParserCheck::print_span_html_enter(AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail) {
     html << "<" << AB::span_to_html(s_type);
 
-    // if (b_type == AB::BLOCK_DIV) {
-    //     auto info = std::static_pointer_cast<AB::BlockDivDetail>(detail);
-    //     html << " class=\"" << info->name << "\"";
-    // }
-    // else if (b_type == AB::BLOCK_CODE) {
-    //     auto info = std::static_pointer_cast<AB::BlockCodeDetail>(detail);
-    //     html << " lang=\"" << info->lang << "\"";
-    // }
+    if (s_type == AB::SPAN_URL) {
+        auto info = std::static_pointer_cast<AB::SpanADetail>(detail);
+        html << " href=\"" << info->href << "\"";
+    }
 
     std::map<std::string, std::string> ordered_attrs;
     for (auto& pair : attributes)
@@ -115,26 +87,8 @@ void ParserCheck::print_html_enter(AB::SPAN_TYPE s_type, const std::vector<AB::B
     else {
         html << ">";
     }
-
-    // int j = 0;
-    // for (auto bound : bounds) {
-    //     if (b_type == AB::BLOCK_LATEX) {
-    //         if (j > 0)
-    //             html << " ";
-    //     }
-    //     else if (b_type == AB::BLOCK_CODE) {
-    //         if (j > 1 && j < bounds.size() - 1)
-    //             html << '\n';
-    //     }
-    //     else if (j > 0)
-    //         html << "<br />";
-    //     for (int i = bound.beg;i < bound.end;i++) {
-    //         html << txt[i];
-    //     }
-    //     j++;
-    // }
 }
-void ParserCheck::print_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail) {
+void ParserCheck::print_span_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail) {
     for (int i = 0;i < level;i++) {
         ast << "  ";
     }
@@ -148,7 +102,7 @@ void ParserCheck::print_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Boundari
     }
     ast << std::endl;
 }
-void ParserCheck::print_html_close(AB::SPAN_TYPE s_type) {
+void ParserCheck::print_span_html_close(AB::SPAN_TYPE s_type) {
     if (s_type != AB::SPAN_IMG) {
         html << "</" << AB::span_to_html(s_type) << ">";
         for (int i = 0;i < level;i++) {
@@ -157,28 +111,64 @@ void ParserCheck::print_html_close(AB::SPAN_TYPE s_type) {
     }
 }
 
+void ParserCheck::print_text_ast(const std::vector<AB::Boundaries>& bounds) {
+    for (int i = 0;i < level;i++) {
+        ast << "  ";
+    }
+    ast << "TEXT";
+    for (auto bound : bounds) {
+        ast << " {" << bound.line_number;
+        ast << ": " << bound.pre;
+        ast << ", " << bound.beg;
+        ast << ", " << bound.end;
+        ast << ", " << bound.post << "} ";
+    }
+    ast << std::endl;
+}
+
 ParserCheck::ParserCheck() {
     parser.enter_block = [&](AB::BLOCK_TYPE b_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::BlockDetailPtr detail) -> bool {
-        this->print_html_enter(b_type, bounds, attributes, detail);
-        this->print_ast(b_type, bounds, attributes, detail);
+        this->print_block_html_enter(b_type, bounds, attributes, detail);
+        this->print_block_ast(b_type, bounds, attributes, detail);
         level++;
         return true;
     };
     parser.leave_block = [&](AB::BLOCK_TYPE b_type) -> bool {
         level--;
-        this->print_html_close(b_type);
+        this->print_block_html_close(b_type);
         has_entered = false;
         return true;
     };
     parser.enter_span = [&](AB::SPAN_TYPE s_type, const std::vector<AB::Boundaries>& bounds, const AB::Attributes& attributes, AB::SpanDetailPtr detail) {
-        this->print_html_enter(s_type, bounds, attributes, detail);
-        this->print_ast(s_type, bounds, attributes, detail);
+        this->print_span_html_enter(s_type, bounds, attributes, detail);
+        this->print_span_ast(s_type, bounds, attributes, detail);
         level++;
         return true;
     };
     parser.leave_span = [&](AB::SPAN_TYPE s_type) {
         level--;
-        this->print_html_close(s_type);
+        this->print_span_html_close(s_type);
+        return true;
+    };
+    parser.text = [&](AB::TEXT_TYPE t_type, const std::vector<AB::Boundaries>& bounds) {
+        this->print_text_ast(bounds);
+        int j = 0;
+        for (auto bound : bounds) {
+            if (t_type == AB::TEXT_LATEX) {
+                if (j > 0)
+                    html << " ";
+            }
+            else if (t_type == AB::TEXT_CODE) {
+                if (j > 1 && j < bounds.size() - 1)
+                    html << '\n';
+            }
+            else if (j > 0)
+                html << "<br />";
+            for (int i = bound.beg;i < bound.end;i++) {
+                html << txt[i];
+            }
+            j++;
+        }
         return true;
     };
 }

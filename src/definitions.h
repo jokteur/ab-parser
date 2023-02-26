@@ -71,26 +71,13 @@ namespace AB {
         TEXT_NORMAL = 0,
 
         TEXT_LATEX,
-
-        /* Everything that is not considered content by markdown and is used to give information
-         * about a block, i.e. delimitation markers, whitespace, special chars TEXT_BLOCK_MARKER_HIDDEN
-         */
-        TEXT_BLOCK_MARKER_HIDDEN,
-        /* Everything that is not considered content by markdown and is used to give information
-         * about a span, i.e. delimitation markers is TEXT_SPAN_MARKER_HIDDEN
-         */
-        TEXT_SPAN_MARKER_HIDDEN,
-        /* Ascii chars can be escaped with \ */
-        TEXT_ESCAPE_CHAR_HIDDEN
+        TEXT_CODE
     };
 
     const char* block_to_name(BLOCK_TYPE type);
     const char* block_to_html(BLOCK_TYPE type);
     const char* span_to_name(SPAN_TYPE type);
     const char* span_to_html(SPAN_TYPE type);
-    const char* text_to_name(TEXT_TYPE type);
-
-
 
     /* ======================
      * Block and span details
@@ -164,7 +151,7 @@ namespace AB {
     typedef std::function<bool(BLOCK_TYPE type)> LeaveBlockFct;
     typedef std::function<bool(SPAN_TYPE type, const std::vector<Boundaries>& bounds, const Attributes& attributes, std::shared_ptr<SpanDetail> detail)> SpanFct;
     typedef std::function<bool(SPAN_TYPE type)> LeaveSpanFct;
-    typedef std::function<bool(TEXT_TYPE type, const OFFSET begin, const OFFSET end)> TextFct;
+    typedef std::function<bool(TEXT_TYPE type, const std::vector<Boundaries>& bounds)> TextFct;
 
     struct Parser {
         BlockFct enter_block;

@@ -137,19 +137,4 @@ namespace AB {
         };
         return "";
     }
-    const char* text_to_name(TEXT_TYPE type) {
-        switch (type) {
-        case TEXT_NORMAL:
-            return "T_NORMAL";
-        case TEXT_LATEX:
-            return "T_LATEX";
-        case TEXT_BLOCK_MARKER_HIDDEN:
-            return "T_BLOCK_MARKER_HIDDEN";
-        case TEXT_SPAN_MARKER_HIDDEN:
-            return "T_SPAN_MARKER_HIDDEN";
-        case TEXT_ESCAPE_CHAR_HIDDEN:
-            return "T_ESCAPE_CHAR_HIDDEN";
-        };
-        return "";
-    }
 }

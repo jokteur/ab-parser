@@ -293,42 +293,82 @@ namespace AB {
         }
         return 0;
     }
+
+    bool create_text(Context* ctx, std::vector<Boundaries>::iterator& b_it, std::vector<Boundaries>::iterator& b_end_it, TEXT_TYPE type, OFFSET start, OFFSET end) {
+        bool ret = true;
+        if (start == end || end > (OFFSET)ctx->size)
+            return true;
+        std::vector<Boundaries> bounds;
+
+        /* Edge case if the cursor just stopped on a new line */
+        if (start == b_it->post) {
+            b_it++;
+            start = b_it->beg;
+        }
+
+        int last_line = ctx->offset_to_line_number[end];
+        int diff = last_line - b_it->line_number;
+        if (diff > 0) {
+            bounds.push_back({ b_it->line_number, start, start, b_it->end, b_it->end });
+            while (diff > 1) {
+                b_it++;
+                if (b_it == b_end_it)
+                    break;
+                start = b_it->beg;
+                bounds.push_back({ b_it->line_number, start, start, b_it->end, b_it->end });
+                diff = last_line - b_it->line_number;
+            }
+            b_it++;
+            bounds.push_back({ b_it->line_number, b_it->beg, b_it->beg, end, end });
+        }
+        else {
+            bounds.push_back({ b_it->line_number, start, start, end, end });
+        }
+
+        CHECK_AND_RET(ctx->parser->text(type, bounds));
+
+        return true;
+    abort:
+        return ret;
+    }
     bool parse_spans(Context* ctx, ContainerPtr ptr) {
         bool ret = true;
 
         MarkChain mark_chain;
         int opened_flags = 0;
 
-        for (auto& bound : ptr->content_boundaries) {
-            bool prev_is_whitespace = true;
-            bool prev_is_punctuation = false;
-            for (OFFSET off = bound.beg;off < bound.end;) {
-                if (CH(off) == '\\')
-                    continue;
-                else if (ISWHITESPACE(off))
-                    prev_is_whitespace = true;
-                else if (ISPUNCT(off))
-                    prev_is_punctuation = true;
+        if (ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
+            for (auto& bound : ptr->content_boundaries) {
+                bool prev_is_whitespace = true;
+                bool prev_is_punctuation = false;
+                for (OFFSET off = bound.beg;off < bound.end;) {
+                    if (CH(off) == '\\')
+                        continue;
+                    else if (ISWHITESPACE(off))
+                        prev_is_whitespace = true;
+                    else if (ISPUNCT(off))
+                        prev_is_punctuation = true;
 
-                bool success = false;
-                int advance = 0;
+                    bool success = false;
+                    int advance = 0;
 
-                for (auto& mark : marks) {
-                    /* Search first for closing marks */
-                    if (opened_flags & mark.s_type) {
-                        success = close_mark(ctx, mark_chain, mark, &off, bound.end, ptr->content_boundaries);
-                        if (success) {
-                            break;
+                    for (auto& mark : marks) {
+                        /* Search first for closing marks */
+                        if (opened_flags & mark.s_type) {
+                            success = close_mark(ctx, mark_chain, mark, &off, bound.end, ptr->content_boundaries);
+                            if (success) {
+                                break;
+                            }
                         }
+                        /* Search then for opening marks */
+                        int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, &opened_flags);
+                        if (mark_count > advance)
+                            advance = mark_count;
+                        else advance = 1;
                     }
-                    /* Search then for opening marks */
-                    int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, &opened_flags);
-                    if (mark_count > advance)
-                        advance = mark_count;
-                    else advance = 1;
+                    if (!success)
+                        off += advance;
                 }
-                if (!success)
-                    off += advance;
             }
         }
 
@@ -354,9 +394,15 @@ namespace AB {
             mark_chain.erase(it);
         }
 
+        /* Pass the spans to the caller of the library */
+        auto& bound_it = ptr->content_boundaries.begin();
+        auto& bound_end = ptr->content_boundaries.end();
+        OFFSET text_off = bound_it->beg;
+
         for (auto it = mark_chain.begin();it != mark_chain.end();it++) {
             auto& mark = *it;
             if (!mark.is_closing) {
+                /* Create href details for links */
                 SpanDetailPtr detail = nullptr;
                 if (mark.s_type == S_LINK || mark.s_type == S_LINKDEF) {
                     OFFSET start = mark.true_bounds.back().end + 2;
@@ -376,6 +422,11 @@ namespace AB {
                     }
                     detail = tmp;
                 }
+
+                /* Insert text left to span */
+                CHECK_AND_RET(create_text(ctx, bound_it, bound_end, TEXT_NORMAL, text_off, mark.true_bounds.front().pre));
+                text_off = mark.true_bounds.front().beg;
+
                 CHECK_AND_RET(ctx->parser->enter_span(
                     flag_to_type(mark.s_type),
                     mark.true_bounds,
@@ -384,10 +435,30 @@ namespace AB {
                 ));
             }
             else {
+                /* Insert text from inside span */
+                auto& bound = mark.start_ptr->true_bounds.back();
+                TEXT_TYPE type = TEXT_NORMAL;
+                if (mark.s_type == SPAN_LATEXMATH) {
+                    type = TEXT_LATEX;
+                }
+                else if (mark.s_type == SPAN_CODE) {
+                    type = TEXT_CODE;
+                }
+                CHECK_AND_RET(create_text(ctx, bound_it, bound_end, type, text_off, bound.end));
+                text_off = bound.post;
+
                 CHECK_AND_RET(ctx->parser->leave_span(flag_to_type(mark.s_type)));
             }
         }
 
+        TEXT_TYPE t_type = TEXT_NORMAL;
+        if (ptr->b_type == BLOCK_CODE) {
+            t_type = TEXT_CODE;
+        }
+        else if (ptr->b_type == BLOCK_LATEX) {
+            t_type = TEXT_LATEX;
+        }
+        CHECK_AND_RET(create_text(ctx, bound_it, bound_end, t_type, text_off, ptr->content_boundaries.back().end));
         return true;
     abort:
         return ret;

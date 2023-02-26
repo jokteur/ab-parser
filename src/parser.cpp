@@ -45,8 +45,7 @@ namespace AB {
                 continue;
             CHECK_AND_RET(enter_block(ctx, child));
         }
-        if (is_leaf_block(ptr->b_type)
-            && ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
+        if (is_leaf_block(ptr->b_type)) {
             parse_spans(ctx, ptr);
         }
         CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
@@ -65,7 +64,7 @@ namespace AB {
     }
 
     void generate_line_number_data(Context* ctx) {
-        ctx->offset_to_line_number.reserve(ctx->size);
+        ctx->offset_to_line_number.reserve(ctx->size + 1);
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
         int line_counter = 0;
@@ -77,6 +76,7 @@ namespace AB {
                     ctx->line_number_begs.push_back(i + 1);
             }
         }
+        ctx->offset_to_line_number.push_back(line_counter);
     }
 
     bool process_doc(Context* ctx) {
