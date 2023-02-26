@@ -1,4 +1,5 @@
 #include "parse_spans.h"
+#include "parse_commons.h"
 #include <iostream>
 #include <list>
 
@@ -109,6 +110,8 @@ namespace AB {
         OFFSET beg = 0;
         int line_number = 0;
         std::vector<Boundaries> true_bounds;
+        Attributes attributes;
+        Mark* start_ptr = nullptr;
     };
 
     static const Mark marks[] = {
@@ -240,6 +243,7 @@ namespace AB {
                 tmp_mark.is_closing = true;
                 for (auto& m : to_erase)
                     mark_chain.erase(m);
+                tmp_mark.start_ptr = &(*it);
                 mark_chain.push_back(tmp_mark);
                 *off = jump_to;
                 return true;
@@ -326,11 +330,22 @@ namespace AB {
             }
         }
 
-        /* Cleanup of unmatched spans */
+        /* Cleanup of unmatched spans and attribute creation */
         std::vector<std::list<Mark>::iterator> to_erase;
         for (auto it = mark_chain.begin();it != mark_chain.end();it++) {
             if (!it->solved) {
                 to_erase.push_back(it);
+            }
+            else if (it->s_type == S_ATTRIBUTE) {
+                auto& next = std::next(it);
+                if (it != mark_chain.begin()) {
+                    auto& prev = std::prev(it);
+                    OFFSET off = it->beg;
+                    prev->start_ptr->attributes = parse_attributes(ctx, &off);
+                }
+                to_erase.push_back(it);
+                to_erase.push_back(next);
+                it++;
             }
         }
         for (auto it : to_erase) {
@@ -342,7 +357,7 @@ namespace AB {
                 CHECK_AND_RET(ctx->parser->enter_span(
                     flag_to_type(mark.s_type),
                     { mark.true_bounds },
-                    Attributes{},
+                    mark.attributes,
                     nullptr
                 ));
             }
