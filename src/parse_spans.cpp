@@ -176,8 +176,8 @@ namespace AB {
                 /* Look ahead */
                 while (tmp_off < end) {
                     if (CH(tmp_off) == mark.second_close[0]) {
-                        OFFSET j = 1;
-                        found_match = check_match(ctx, mark.close, j, tmp_off, end);
+                        OFFSET j = 0;
+                        found_match = check_match(ctx, mark.second_close, j, tmp_off, end);
                         if (found_match) {
                             jump_to = tmp_off + j;
                         }
@@ -195,6 +195,7 @@ namespace AB {
             auto it = mark_chain.rbegin();
             auto current = mark_chain.rbegin();
             std::vector<std::list<Mark>::iterator> to_erase;
+
             while (it != mark_chain.rend()) {
                 if (it->solved && !(it->s_type & mark.dont_allow_inside)) {
                     it++;
@@ -311,6 +312,7 @@ namespace AB {
 
                 bool success = false;
                 int advance = 0;
+
                 for (auto& mark : marks) {
                     /* Search first for closing marks */
                     if (opened_flags & mark.s_type) {
