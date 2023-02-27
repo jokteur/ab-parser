@@ -172,6 +172,7 @@ namespace AB {
             found_match = check_match(ctx, mark.close, i, *off, end);
             jump_to = jump_to + i;
             if (!mark.second_close.empty() && found_match) {
+                found_match = false;
                 OFFSET tmp_off = *off;
                 /* Look ahead */
                 while (tmp_off < end) {
@@ -218,7 +219,7 @@ namespace AB {
                 OFFSET b_post = jump_to;
                 int line_number = ctx->offset_to_line_number[b_end];
                 if (line_number > tmp_mark.line_number) {
-                    auto& bound_it = content_bounds.begin();
+                    auto bound_it = content_bounds.begin();
                     while (bound_it != content_bounds.end()) {
                         if (bound_it->line_number == it->line_number)
                             break;
@@ -381,9 +382,9 @@ namespace AB {
                 to_erase.push_back(it);
             }
             else if (it->s_type == S_ATTRIBUTE) {
-                auto& next = std::next(it);
+                auto next = std::next(it);
                 if (it != mark_chain.begin()) {
-                    auto& prev = std::prev(it);
+                    auto prev = std::prev(it);
                     OFFSET off = it->beg;
                     prev->start_ptr->attributes = parse_attributes(ctx, &off);
                 }
@@ -397,10 +398,11 @@ namespace AB {
         }
 
         /* Pass the spans to the caller of the library */
-        auto& bound_it = ptr->content_boundaries.begin();
-        auto& bound_end = ptr->content_boundaries.end();
+        auto bound_it = ptr->content_boundaries.begin();
+        auto bound_end = ptr->content_boundaries.end();
         OFFSET text_off = bound_it->beg;
 
+        TEXT_TYPE t_type = TEXT_NORMAL;
         for (auto it = mark_chain.begin();it != mark_chain.end();it++) {
             auto& mark = *it;
             if (!mark.is_closing) {
@@ -453,7 +455,6 @@ namespace AB {
             }
         }
 
-        TEXT_TYPE t_type = TEXT_NORMAL;
         if (ptr->b_type == BLOCK_CODE) {
             t_type = TEXT_CODE;
         }
