@@ -140,6 +140,14 @@ namespace AB {
     struct SpanDetail {};
     struct SpanADetail: public SpanDetail {
         std::string href;
+        bool alias = false;
+    };
+    struct SpanImgDetail: public SpanDetail {
+        std::string href;
+    };
+    struct SpanRefDetail: public SpanDetail {
+        std::string name;
+        bool inserted = false;
     };
     typedef std::shared_ptr<SpanDetail> SpanDetailPtr;
 

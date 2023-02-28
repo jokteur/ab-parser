@@ -1,6 +1,7 @@
 #include "parse_spans.h"
 #include "parse_commons.h"
 #include <iostream>
+#include <unordered_set>
 #include <list>
 
 namespace AB {
@@ -40,7 +41,7 @@ namespace AB {
         case S_LINK:
             return SPAN_URL;
         case S_LINKDEF:
-            return SPAN_URL; // TODO
+            return SPAN_URL;
         case S_AUTOLINK:
             return SPAN_URL;
         case S_REF:
@@ -102,6 +103,7 @@ namespace AB {
         bool repeat = false;
         int count = 0;
         std::string second_close;
+        bool authorize_first_char_braket = true;
 
         /* Once solved, we store this information */
         bool solved = false;
@@ -114,11 +116,24 @@ namespace AB {
         Mark* start_ptr = nullptr;
     };
 
+    static const std::unordered_set<char> opening_marks{
+        '!', '[', '*', '`', '_', '{', '$', 'h'
+    };
+
+    static const std::unordered_set<char> closing_marks{
+        ']', '=', '*', '+', '-', '_', '`', '$', '}', ' '
+    };
+
     static const Mark marks[] = {
-        Mark{ S_EM_SIMPLE, "_", "_", true},
+        /* The order at which declare here is of crucial importance
+         * If `*` is checked before `{*`, then `*` will be closed
+         * before `{*` and thus making it impossible in most cases
+         * to detect `{*`
+         * */
         Mark{ S_EM, "{_", "_}"},
-        Mark{ S_STRONG_SIMPLE, "*", "*", true},
+        Mark{ S_EM_SIMPLE, "_", "_", true},
         Mark{ S_STRONG, "{*", "*}"},
+        Mark{ S_STRONG_SIMPLE, "*", "*", true},
         Mark{ S_VERBATIME, "`", "`", false, SELECT_ALL, true},
         Mark{ S_HIGHLIGHT, "{=", "=}"},
         Mark{ S_UNDERLINE, "{+", "+}"},
@@ -127,8 +142,8 @@ namespace AB {
         Mark{ S_LINKDEF, "[", "][", false, SELECT_ALL_LINKS, false, 0, "]"},
         Mark{ S_AUTOLINK, "http://", " ", false, SELECT_ALL},
         Mark{ S_AUTOLINK, "https://", " ", false, SELECT_ALL},
-        Mark{ S_REF, "[[", "]]", false, SELECT_ALL},
         Mark{ S_INSERTED_REF, "![[", "]]", false, SELECT_ALL},
+        Mark{ S_REF, "[[", "]]", false, SELECT_ALL},
         Mark{ S_IMG, "![", "]", false, SELECT_ALL},
         Mark{ S_LATEX, "$$", "$$", false, SELECT_ALL},
         Mark{ S_ATTRIBUTE, "{{", "}}", false, SELECT_ALL}
@@ -148,7 +163,26 @@ namespace AB {
         return true;
     }
 
-    inline bool close_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET* off, OFFSET end, const std::vector<AB::Boundaries>& content_bounds) {
+    void add_to_flag_count(std::unordered_map<int, int>& flag_count, int flag) {
+        if (flag_count.find(flag) != flag_count.end()) {
+            flag_count[flag]++;
+        }
+        else {
+            flag_count[flag] = 1;
+        }
+    }
+    /* No testing of bounds */
+    void remove_from_flag_count(std::unordered_map<int, int>& flag_count, int flag) {
+        flag_count[flag]--;
+    }
+
+    bool is_count_positive(std::unordered_map<int, int>& flag_count, int flag) {
+        if (flag_count.find(flag) != flag_count.end() && flag_count[flag] > 0)
+            return true;
+        return false;
+    }
+
+    inline bool close_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET* off, OFFSET end, const std::vector<AB::Boundaries>& content_bounds, std::unordered_map<int, int>& flag_count) {
         bool found_match = true;
         OFFSET i = 0;
         OFFSET jump_to = *off;
@@ -169,11 +203,12 @@ namespace AB {
             }
         }
         else {
+
             found_match = check_match(ctx, mark.close, i, *off, end);
             jump_to = jump_to + i;
             if (!mark.second_close.empty() && found_match) {
                 found_match = false;
-                OFFSET tmp_off = *off;
+                OFFSET tmp_off = *off + 1;
                 /* Look ahead */
                 while (tmp_off < end) {
                     if (CH(tmp_off) == mark.second_close[0]) {
@@ -205,6 +240,7 @@ namespace AB {
                 if (it->s_type == mark.s_type && it->count == mark_count) {
                     break;
                 }
+                remove_from_flag_count(flag_count, it->s_type);
                 to_erase.push_back(std::next(it).base());
                 it++;
             }
@@ -255,7 +291,7 @@ namespace AB {
         return false;
     }
 
-    inline int open_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET off, OFFSET end, bool ws_or_punct_before, int* opened_flags) {
+    inline int open_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET off, OFFSET end, bool ws_or_punct_before, std::unordered_map<int, int>& flag_count) {
         bool found_match = true;
         OFFSET i = 0;
         int mark_count = 0;
@@ -289,7 +325,7 @@ namespace AB {
                 tmp_mark.beg = off + (OFFSET)mark.open.length();
             }
             mark_chain.push_back(tmp_mark);
-            *opened_flags |= mark.s_type;
+            add_to_flag_count(flag_count, mark.s_type);
             return mark_count;
         }
         return 0;
@@ -338,37 +374,56 @@ namespace AB {
         bool ret = true;
 
         MarkChain mark_chain;
-        int opened_flags = 0;
+
+        std::unordered_map<int, int> flag_count;
 
         if (ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
             for (auto& bound : ptr->content_boundaries) {
                 bool prev_is_whitespace = true;
                 bool prev_is_punctuation = false;
+                /* Kind of a hack to avoid making ![[]] become !<ref />*/
+                bool prev_is_exclamation_or_bracket = false;
                 for (OFFSET off = bound.beg;off < bound.end;) {
-                    if (CH(off) == '\\')
+                    if (prev_is_exclamation_or_bracket) {
+                        prev_is_exclamation_or_bracket = false;
+                        off++;
                         continue;
+                    }
+                    if (CH(off) == '\\') {
+                        off++;
+                        continue;
+                    }
+                    // else if (CH(off) == '[' || CH(off) == '!')
+                    //     prev_is_exclamation_or_bracket = true;
                     else if (ISWHITESPACE(off))
                         prev_is_whitespace = true;
                     else if (ISPUNCT(off))
                         prev_is_punctuation = true;
 
                     bool success = false;
-                    int advance = 0;
+                    int advance = 1;
 
-                    for (auto& mark : marks) {
-                        /* Search first for closing marks */
-                        if (opened_flags & mark.s_type) {
-                            success = close_mark(ctx, mark_chain, mark, &off, bound.end, ptr->content_boundaries);
-                            if (success) {
-                                break;
+                    bool opening_char = opening_marks.find(CH(off)) != opening_marks.end();
+                    bool closing_char = closing_marks.find(CH(off)) != closing_marks.end();
+
+                    if (opening_char || closing_char)
+                        for (auto& mark : marks) {
+                            /* Search first for closing marks */
+                            if (closing_char && is_count_positive(flag_count, mark.s_type)) {
+                                success = close_mark(ctx, mark_chain, mark, &off, bound.end, ptr->content_boundaries, flag_count);
+                                if (success) {
+                                    remove_from_flag_count(flag_count, mark.s_type);
+                                    advance = 0;
+                                    break;
+                                }
+                            }
+                            /* Search then for opening marks */
+                            if (opening_char) {
+                                int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, flag_count);
+                                if (mark_count > advance)
+                                    advance = mark_count;
                             }
                         }
-                        /* Search then for opening marks */
-                        int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, &opened_flags);
-                        if (mark_count > advance)
-                            advance = mark_count;
-                        else advance = 1;
-                    }
                     if (!success)
                         off += advance;
                 }
@@ -408,13 +463,15 @@ namespace AB {
             if (!mark.is_closing) {
                 /* Create href details for links */
                 SpanDetailPtr detail = nullptr;
-                if (mark.s_type == S_LINK || mark.s_type == S_LINKDEF) {
+                if (mark.s_type & (S_LINK | S_LINKDEF)) {
                     OFFSET start = mark.true_bounds.back().end + 2;
                     OFFSET end = mark.true_bounds.back().post - 1;
                     auto tmp = std::make_shared<SpanADetail>();
                     for (OFFSET off = start;off < end;off++) {
                         tmp->href += CH(off);
                     }
+                    if (mark.s_type & S_LINKDEF)
+                        tmp->alias = true;
                     detail = tmp;
                 }
                 else if (mark.s_type == S_AUTOLINK) {
@@ -424,6 +481,26 @@ namespace AB {
                     for (OFFSET off = start;off < end;off++) {
                         tmp->href += CH(off);
                     }
+                    detail = tmp;
+                }
+                else if (mark.s_type == S_IMG) {
+                    OFFSET start = mark.true_bounds.back().beg;
+                    OFFSET end = mark.true_bounds.back().end;
+                    auto tmp = std::make_shared<SpanImgDetail>();
+                    for (OFFSET off = start;off < end;off++) {
+                        tmp->href += CH(off);
+                    }
+                    detail = tmp;
+                }
+                else if (mark.s_type & (S_REF | S_INSERTED_REF)) {
+                    OFFSET start = mark.true_bounds.back().beg;
+                    OFFSET end = mark.true_bounds.back().end;
+                    auto tmp = std::make_shared<SpanRefDetail>();
+                    for (OFFSET off = start;off < end;off++) {
+                        tmp->name += CH(off);
+                    }
+                    if (mark.s_type & S_INSERTED_REF)
+                        tmp->inserted = true;
                     detail = tmp;
                 }
 
@@ -440,7 +517,8 @@ namespace AB {
             }
             else {
                 /* Insert text from inside span */
-                auto& bound = mark.start_ptr->true_bounds.back();
+                auto bound = mark.start_ptr->true_bounds.back();
+                bool has_text = true;
                 TEXT_TYPE type = TEXT_NORMAL;
                 if (mark.s_type == S_LATEX) {
                     type = TEXT_LATEX;
@@ -448,7 +526,11 @@ namespace AB {
                 else if (mark.s_type == S_VERBATIME) {
                     type = TEXT_CODE;
                 }
-                CHECK_AND_RET(create_text(ctx, bound_it, bound_end, type, text_off, bound.end));
+                else if (mark.s_type & (S_REF | S_INSERTED_REF | S_IMG))
+                    has_text = false;
+
+                if (has_text)
+                    CHECK_AND_RET(create_text(ctx, bound_it, bound_end, type, text_off, bound.end));
                 text_off = bound.post;
 
                 CHECK_AND_RET(ctx->parser->leave_span(flag_to_type(mark.s_type)));

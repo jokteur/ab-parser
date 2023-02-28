@@ -76,6 +76,18 @@ void ParserCheck::print_span_html_enter(AB::SPAN_TYPE s_type, const std::vector<
     if (s_type == AB::SPAN_URL) {
         auto info = std::static_pointer_cast<AB::SpanADetail>(detail);
         html << " href=\"" << info->href << "\"";
+        if (info->alias)
+            html << " alias";
+    }
+    else if (s_type == AB::SPAN_IMG) {
+        auto info = std::static_pointer_cast<AB::SpanImgDetail>(detail);
+        html << " href=\"" << info->href << "\"";
+    }
+    else if (s_type == AB::SPAN_REF) {
+        auto info = std::static_pointer_cast<AB::SpanRefDetail>(detail);
+        html << " name=\"" << info->name << "\"";
+        if (info->inserted)
+            html << " inserted";
     }
 
     std::map<std::string, std::string> ordered_attrs;
@@ -87,7 +99,7 @@ void ParserCheck::print_span_html_enter(AB::SPAN_TYPE s_type, const std::vector<
             html << "=\"" << pair.second << "\"";
     }
 
-    if (s_type == AB::SPAN_IMG) {
+    if (s_type == AB::SPAN_IMG || s_type == AB::SPAN_REF) {
         html << "/>";
     }
     else {
@@ -109,7 +121,7 @@ void ParserCheck::print_span_ast(AB::SPAN_TYPE s_type, const std::vector<AB::Bou
     ast << std::endl;
 }
 void ParserCheck::print_span_html_close(AB::SPAN_TYPE s_type) {
-    if (s_type != AB::SPAN_IMG) {
+    if (s_type != AB::SPAN_IMG && s_type != AB::SPAN_REF) {
         html << "</" << AB::span_to_html(s_type) << ">";
     }
 }
