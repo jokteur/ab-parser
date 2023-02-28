@@ -16,9 +16,11 @@ add_library(${PROJECT_NAME} ${source_list})
 # ~~~~~~~
 # Testing
 # ~~~~~~~
+if(NOT CMAKE_SOURCE_DIR STREQUAL CMAKE_CURRENT_SOURCE_DIR)
 
 # -------
 # DocTest
 # -------
 add_subdirectory(external/doctest)
 add_subdirectory(tests)
+endif()
