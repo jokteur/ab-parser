@@ -107,6 +107,7 @@ namespace AB {
     // === Analysing ===
 
     static void analyse_make_p(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
+        seg->attributes.clear();
         seg->b_bounds.pre = off;
         seg->b_bounds.beg = off;
         seg->flags = P_OPENER;
@@ -131,8 +132,8 @@ namespace AB {
 
     static inline void get_name_and_attributes(Context* ctx, OFFSET* off, std::string& name, Attributes& attributes) {
         for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
-            if (CH(*off) == '{') {
-                (*off)++;
+            if (CH(*off) == '{' && CH(*off + 1) == '{') {
+                *off += 2;
                 attributes = parse_attributes(ctx, off);
                 break;
             }
@@ -156,6 +157,7 @@ namespace AB {
         bool check_ws_before = allow_chars_before_closing
             || !allow_chars_before_closing && CHECK_WS_BEFORE(*off);
 
+
         int count = 0;
         for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '\\')
@@ -172,10 +174,20 @@ namespace AB {
         bool non_authorized_text_after = false;
         /* Check for attributes after ending */
 
-        if (CH(*off) == '{' && allow_attributes) {
-            (*off)++;
-            seg->attributes = parse_attributes(ctx, off);
-            if (seg->attributes.empty()) {
+        OFFSET tmp_off = *off;
+
+        skip_whitespace(ctx, &tmp_off);
+
+        if (CH(tmp_off) == '{' && allow_attributes) {
+            tmp_off++;
+            if (CH(tmp_off) == '{') {
+                tmp_off++;
+                seg->attributes = parse_attributes(ctx, &tmp_off);
+                if (seg->attributes.empty()) {
+                    non_authorized_text_after = true;
+                }
+            }
+            else {
                 non_authorized_text_after = true;
             }
         }
@@ -486,7 +498,7 @@ namespace AB {
             else if (CH(off) == '$') {
                 OFFSET tmp_off = off;
                 int count = count_marks(ctx, &off, '$');
-                /* Try to advance until the end of the line to see if the block is already close */
+                /* Try to advance until the end of the line to see if the block is already closed */
                 advance_until(ctx, &off, acc, '$');
                 int closing = check_for_closing_delimiters(ctx, &off, seg, '$', 2, false, true, true);
                 if (CHECK_WS_BEFORE(tmp_off) && count == 2 && closing >= 0) {
@@ -867,6 +879,7 @@ namespace AB {
         else if (seg->flags & LATEX_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_LATEX)) {
                 ctx->current_container->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post });
+                ctx->current_container->attributes = seg->attributes;
             }
             else {
                 add_container(ctx, BLOCK_LATEX, { seg->line_number, seg->b_bounds.pre, seg->b_bounds.beg, seg->b_bounds.end, seg->b_bounds.post }, seg);

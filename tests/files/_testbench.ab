@@ -1,21 +1,6 @@
-Ref: ![[insered]] [[ref]]
+$$ qwdqwd 
+$$  {{noenum}}
 
-Strong: *abc* or {*abc*}
-
-Italic: _def_ or {_def_}
-
-Verbatim: `ghi`
-
-Highlight: {=jkl=}
-
-Underline: {+mno+}
-
-Delete: {-pqr-}
-
-Link: [stu](example.com) or [stu][defined]
-
-Reference: [[ref]]
-
-Image: ![image.png]
-
-Latex: $$f(x) = x^2$$
+```html {{ehu}}
+aas
+```{{attribute}}

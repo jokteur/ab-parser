@@ -81,7 +81,9 @@ void ParserCheck::print_span_html_enter(AB::SPAN_TYPE s_type, const std::vector<
     }
     else if (s_type == AB::SPAN_IMG) {
         auto info = std::static_pointer_cast<AB::SpanImgDetail>(detail);
-        html << " href=\"" << info->href << "\"";
+        html << " src=\"" << info->src << "\" alt=\"" << info->title << "\"";
+        if (info->alias)
+            html << " alias";
     }
     else if (s_type == AB::SPAN_REF) {
         auto info = std::static_pointer_cast<AB::SpanRefDetail>(detail);

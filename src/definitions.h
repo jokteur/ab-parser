@@ -143,7 +143,9 @@ namespace AB {
         bool alias = false;
     };
     struct SpanImgDetail: public SpanDetail {
-        std::string href;
+        std::string src;
+        std::string title;
+        bool alias = false;
     };
     struct SpanRefDetail: public SpanDetail {
         std::string name;

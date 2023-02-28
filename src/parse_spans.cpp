@@ -19,8 +19,10 @@ namespace AB {
     static const int S_REF = 0x800;
     static const int S_INSERTED_REF = 0x1000;
     static const int S_IMG = 0x2000;
-    static const int S_LATEX = 0x4000;
-    static const int S_ATTRIBUTE = 0x8000;
+    static const int S_IMG_TITLE = 0x4000;
+    static const int S_IMG_DEF = 0x8000;
+    static const int S_LATEX = 0x10000;
+    static const int S_ATTRIBUTE = 0x20000;
 
     SPAN_TYPE flag_to_type(int flag) {
         switch (flag) {
@@ -48,6 +50,8 @@ namespace AB {
         case S_INSERTED_REF:
             return SPAN_REF;
         case S_IMG:
+        case S_IMG_TITLE:
+        case S_IMG_DEF:
             return SPAN_IMG;
         case S_LATEX:
             return SPAN_LATEXMATH;
@@ -57,7 +61,10 @@ namespace AB {
     }
 
     static const int SELECT_ALL = ~0;
-    static const int SELECT_ALL_LINKS = S_LINK | S_LINKDEF | S_AUTOLINK | S_REF | S_INSERTED_REF | S_IMG;
+    static const int SELECT_REFS = S_REF | S_INSERTED_REF;
+    static const int SELECT_IMGS = S_IMG | S_IMG_DEF | S_IMG_TITLE;
+    static const int SELECT_LINKS = S_LINK | S_LINKDEF | S_AUTOLINK;
+    static const int SELECT_ALL_LINKTYPE = SELECT_REFS | SELECT_IMGS | SELECT_LINKS;
 
     /**
      * @brief Mark stores the rules for span detection
@@ -103,7 +110,7 @@ namespace AB {
         bool repeat = false;
         int count = 0;
         std::string second_close;
-        bool authorize_first_char_braket = true;
+        bool no_self_nested = false;
 
         /* Once solved, we store this information */
         bool solved = false;
@@ -121,7 +128,7 @@ namespace AB {
     };
 
     static const std::unordered_set<char> closing_marks{
-        ']', '=', '*', '+', '-', '_', '`', '$', '}', ' '
+        ']', '=', '*', '+', '-', '_', '`', '$', '}'
     };
 
     static const Mark marks[] = {
@@ -138,15 +145,16 @@ namespace AB {
         Mark{ S_HIGHLIGHT, "{=", "=}"},
         Mark{ S_UNDERLINE, "{+", "+}"},
         Mark{ S_DELETE, "{-", "-}"},
-        Mark{ S_LINK, "[", "](", false, SELECT_ALL_LINKS, false, 0, ")"},
-        Mark{ S_LINKDEF, "[", "][", false, SELECT_ALL_LINKS, false, 0, "]"},
-        Mark{ S_AUTOLINK, "http://", " ", false, SELECT_ALL},
-        Mark{ S_AUTOLINK, "https://", " ", false, SELECT_ALL},
         Mark{ S_INSERTED_REF, "![[", "]]", false, SELECT_ALL},
         Mark{ S_REF, "[[", "]]", false, SELECT_ALL},
+        Mark{ S_IMG_TITLE, "![", "](", false, SELECT_ALL_LINKTYPE, false, 0, ")"},
+        Mark{ S_IMG_DEF, "![", "][", false, SELECT_ALL_LINKTYPE, false, 0, "]"},
         Mark{ S_IMG, "![", "]", false, SELECT_ALL},
+        Mark{ S_LINK, "[", "](", false, SELECT_ALL_LINKTYPE, false, 0, ")", true},
+        Mark{ S_LINKDEF, "[", "][", false, SELECT_ALL_LINKTYPE, false, 0, "]", true},
         Mark{ S_LATEX, "$$", "$$", false, SELECT_ALL},
         Mark{ S_ATTRIBUTE, "{{", "}}", false, SELECT_ALL}
+        /* Autolinks handled by lookahead_autolink*/
     };
 
     typedef std::list<Mark> MarkChain;
@@ -203,7 +211,6 @@ namespace AB {
             }
         }
         else {
-
             found_match = check_match(ctx, mark.close, i, *off, end);
             jump_to = jump_to + i;
             if (!mark.second_close.empty() && found_match) {
@@ -233,11 +240,13 @@ namespace AB {
             std::vector<std::list<Mark>::iterator> to_erase;
 
             while (it != mark_chain.rend()) {
-                if (it->solved && !(it->s_type & mark.dont_allow_inside)) {
-                    it++;
-                    continue;
+                if (it->solved) {
+                    if (!(it->s_type & mark.dont_allow_inside)) {
+                        it++;
+                        continue;
+                    }
                 }
-                if (it->s_type == mark.s_type && it->count == mark_count) {
+                else if (it->s_type == mark.s_type && it->count == mark_count) {
                     break;
                 }
                 remove_from_flag_count(flag_count, it->s_type);
@@ -331,6 +340,40 @@ namespace AB {
         return 0;
     }
 
+    bool lookahead_autolink(Context* ctx, MarkChain& mark_chain, OFFSET* off, OFFSET end) {
+        /* Basic efficient sanity check, look for http:// or https:// */
+        if (*off + 7 >= end)
+            return false;
+        if (CH(*off + 1) != 't' || CH(*off + 2) != 't' || CH(*off + 3) != 'p')
+            return false;
+        bool is_https = false;
+        if (CH(*off + 4) == 's')
+            is_https = true;
+        if (is_https && *off + 8 >= end)
+            return false;
+        if (CH(*off + 4 + (int)is_https) != ':' || CH(*off + 5 + (int)is_https) != '/' || CH(*off + 6 + (int)is_https) != '/')
+            return false;
+
+        OFFSET start = *off;
+        while (*off < end) {
+            if (ISWHITESPACE(*off) || CH(*off) == '[' || CH(*off) == ']')
+                break;
+            else if (ISPUNCT(*off) && CHECK_WS_OR_END(*off + 1)) {
+                break;
+            }
+            (*off)++;
+        }
+        Mark autolink{ S_AUTOLINK, "http://", " ", false, SELECT_ALL };
+        autolink.solved = true;
+        autolink.true_bounds.push_back(Boundaries{ ctx->offset_to_line_number[start], start, start, *off, *off });
+        mark_chain.push_back(autolink);
+        auto ptr = &(mark_chain.back());
+        autolink.is_closing = true;
+        autolink.start_ptr = ptr;
+        mark_chain.push_back(autolink);
+        return true;
+    }
+
     bool create_text(Context* ctx, std::vector<Boundaries>::iterator& b_it, std::vector<Boundaries>::iterator& b_end_it, TEXT_TYPE type, OFFSET start, OFFSET end) {
         bool ret = true;
         if (start == end || end > (OFFSET)ctx->size)
@@ -399,6 +442,11 @@ namespace AB {
                         prev_is_whitespace = true;
                     else if (ISPUNCT(off))
                         prev_is_punctuation = true;
+                    else if (CH(off) == 'h') {
+                        bool success = lookahead_autolink(ctx, mark_chain, &off, bound.end);
+                        if (success)
+                            continue;
+                    }
 
                     bool success = false;
                     int advance = 1;
@@ -440,8 +488,26 @@ namespace AB {
                 auto next = std::next(it);
                 if (it != mark_chain.begin()) {
                     auto prev = std::prev(it);
-                    OFFSET off = it->beg;
-                    prev->start_ptr->attributes = parse_attributes(ctx, &off);
+                    /* Need to test if btw prev and attribute there is only whitespace */
+                    auto prev_bound = prev->start_ptr->true_bounds.back();
+                    bool valid_attribute = true;
+                    if (!prev->solved)
+                        valid_attribute = false;
+                    if (valid_attribute && prev_bound.line_number != it->line_number)
+                        valid_attribute = false;
+                    if (valid_attribute)
+                        for (OFFSET off = prev_bound.post;off < it->pre;off++) {
+                            if (!ISWHITESPACE(off)) {
+                                valid_attribute = false;
+                                break;
+                            }
+                        }
+
+                    if (valid_attribute) {
+                        OFFSET off = it->beg;
+                        prev->start_ptr->attributes = parse_attributes(ctx, &off);
+                        prev->start_ptr->true_bounds.back().post = it->true_bounds.back().post;
+                    }
                 }
                 to_erase.push_back(it);
                 to_erase.push_back(next);
@@ -483,16 +549,30 @@ namespace AB {
                     }
                     detail = tmp;
                 }
-                else if (mark.s_type == S_IMG) {
+
+                else if (mark.s_type & SELECT_IMGS) {
                     OFFSET start = mark.true_bounds.back().beg;
                     OFFSET end = mark.true_bounds.back().end;
+                    OFFSET post = mark.true_bounds.back().post;
                     auto tmp = std::make_shared<SpanImgDetail>();
-                    for (OFFSET off = start;off < end;off++) {
-                        tmp->href += CH(off);
+                    if (mark.s_type & S_IMG) {
+                        for (OFFSET off = start;off < end;off++) {
+                            tmp->src += CH(off);
+                        }
                     }
+                    else {
+                        for (OFFSET off = start;off < end;off++) {
+                            tmp->title += CH(off);
+                        }
+                        for (OFFSET off = end + 2;off < post - 1;off++) {
+                            tmp->src += CH(off);
+                        }
+                    }
+                    if (mark.s_type & S_IMG_DEF)
+                        tmp->alias = true;
                     detail = tmp;
                 }
-                else if (mark.s_type & (S_REF | S_INSERTED_REF)) {
+                else if (mark.s_type & SELECT_REFS) {
                     OFFSET start = mark.true_bounds.back().beg;
                     OFFSET end = mark.true_bounds.back().end;
                     auto tmp = std::make_shared<SpanRefDetail>();
@@ -526,7 +606,7 @@ namespace AB {
                 else if (mark.s_type == S_VERBATIME) {
                     type = TEXT_CODE;
                 }
-                else if (mark.s_type & (S_REF | S_INSERTED_REF | S_IMG))
+                else if (mark.s_type & (SELECT_REFS | SELECT_IMGS))
                     has_text = false;
 
                 if (has_text)

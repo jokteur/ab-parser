@@ -83,7 +83,7 @@ If one wants a definition on multiple lines, use four 4-space indentation:
 It is possible to add a bibliography element and make reference to it by simply putting
 in a new line:
 ```AB
-I want to make a citation [[my citation]]
+I want to make a citation [[c:my citation]]
 
 [c:my citation]: Foo bar, Markup languages proceedings, Volume 2, p.45, 2022
 ```
@@ -91,14 +91,14 @@ I want to make a citation [[my citation]]
 If the citation is in another document, one can use the `#` notation:
 
 ```AB
-I want to make a citation [[document#my citation]]
+I want to make a citation [[document#c:my citation]]
 
 ### Footnotes
-It is also possible to do standard footnotes, like in markdown:
+It is also possible to do standard footnotes:
 ```AB
-I want a footnote [^foot].
+I want a footnote [[fn:foot]].
 
-[^foot]: A note.
+[fn:foot]: A note.
 ```
 
 -----------------
@@ -118,6 +118,7 @@ Another link which is defined [later][link]
 # Media
 
 ```AB
+![image.png]
 ![Image with title](image.png)
 ![Image defined later][image]
 
