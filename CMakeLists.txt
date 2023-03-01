@@ -13,6 +13,8 @@ file(GLOB source_list RELATIVE ${CMAKE_CURRENT_SOURCE_DIR}
 # Making a library without the main, for the tests and the program
 add_library(${PROJECT_NAME} ${source_list})
 
+target_include_directories(${PROJECT_NAME} PUBLIC "${PROJECT_SOURCE_DIR}/include")
+
 # ~~~~~~~
 # Testing
 # ~~~~~~~
