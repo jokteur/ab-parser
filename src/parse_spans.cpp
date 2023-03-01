@@ -111,6 +111,7 @@ namespace AB {
         int count = 0;
         std::string second_close;
         bool no_self_nested = false;
+        bool jump_after_match = false;
 
         /* Once solved, we store this information */
         bool solved = false;
@@ -152,7 +153,7 @@ namespace AB {
         Mark{ S_IMG, "![", "]", false, SELECT_ALL},
         Mark{ S_LINK, "[", "](", false, SELECT_ALL_LINKTYPE, false, 0, ")", true},
         Mark{ S_LINKDEF, "[", "][", false, SELECT_ALL_LINKTYPE, false, 0, "]", true},
-        Mark{ S_LATEX, "$$", "$$", false, SELECT_ALL},
+        Mark{ S_LATEX, "$$", "$$", false, SELECT_ALL, false, 0, "", false, true},
         Mark{ S_ATTRIBUTE, "{{", "}}", false, SELECT_ALL}
         /* Autolinks handled by lookahead_autolink*/
     };
@@ -160,12 +161,14 @@ namespace AB {
     typedef std::list<Mark> MarkChain;
 
     inline bool check_match(Context* ctx, const std::string& str, int& i, OFFSET off, OFFSET end) {
+        int count = 0;
         for (;str[i] != 0 && off + i < end;i++) {
             if (str[i] != CH(off + i)) {
                 return false;
             }
+            count++;
         }
-        if (i < str.length() - 1) {
+        if (count < str.length()) {
             return false;
         }
         return true;
@@ -335,7 +338,10 @@ namespace AB {
             }
             mark_chain.push_back(tmp_mark);
             add_to_flag_count(flag_count, mark.s_type);
-            return mark_count;
+            if (mark.jump_after_match)
+                return mark.open.length();
+            else
+                return mark_count;
         }
         return 0;
     }
@@ -433,7 +439,7 @@ namespace AB {
                         continue;
                     }
                     if (CH(off) == '\\') {
-                        off++;
+                        off += 2;
                         continue;
                     }
                     // else if (CH(off) == '[' || CH(off) == '!')
