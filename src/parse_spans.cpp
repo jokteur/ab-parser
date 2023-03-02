@@ -439,7 +439,12 @@ namespace AB {
                         continue;
                     }
                     if (CH(off) == '\\') {
-                        off += 2;
+                        /* Edge case for `\` */
+                        if (!mark_chain.empty() && mark_chain.back().s_type & S_VERBATIME && CH(off + 1) == '`')
+                            off++;
+
+                        else
+                            off += 2;
                         continue;
                     }
                     // else if (CH(off) == '[' || CH(off) == '!')
