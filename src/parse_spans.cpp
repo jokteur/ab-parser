@@ -4,15 +4,17 @@
 #include <unordered_set>
 #include <list>
 
+#define MAX_VERB_OPENINGS 32
+
 namespace AB {
     static const int S_EM_SIMPLE = 0x1;
     static const int S_EM = 0x2;
     static const int S_STRONG_SIMPLE = 0x4;
     static const int S_STRONG = 0x8;
-    static const int S_VERBATIME = 0x10;
-    static const int S_HIGHLIGHT = 0x20;
-    static const int S_UNDERLINE = 0x40;
-    static const int S_DELETE = 0x080;
+    static const int S_HIGHLIGHT = 0x10;
+    static const int S_UNDERLINE = 0x20;
+    static const int S_DELETE = 0x40;
+    static const int S_VERBATIME = 0x80;
     static const int S_LINK = 0x100;
     static const int S_LINKDEF = 0x200;
     static const int S_AUTOLINK = 0x400;
@@ -200,7 +202,7 @@ namespace AB {
         int mark_count = 0;
         if (mark.repeat) {
             char ch = mark.close[0];
-            for (;*off + i < end;i++) {
+            for (;*off + i < end && i < MAX_VERB_OPENINGS;i++) {
                 if (ch != CH(*off + i)) {
                     break;
                 }
@@ -252,7 +254,6 @@ namespace AB {
                 else if (it->s_type == mark.s_type && it->count == mark_count) {
                     break;
                 }
-                remove_from_flag_count(flag_count, it->s_type);
                 to_erase.push_back(std::next(it).base());
                 it++;
             }
@@ -292,8 +293,10 @@ namespace AB {
                 tmp_mark.solved = true;
                 tmp_mark.is_closing = true;
                 tmp_mark.start_ptr = &(*it);
-                for (auto& m : to_erase)
+                for (auto& m : to_erase) {
+                    remove_from_flag_count(flag_count, m->s_type);
                     mark_chain.erase(m);
+                }
                 mark_chain.push_back(tmp_mark);
                 *off = jump_to;
                 return true;
@@ -309,7 +312,7 @@ namespace AB {
         int mark_count = 0;
         if (mark.repeat) {
             char ch = mark.open[0];
-            for (;off + i < end;i++) {
+            for (;off + i < end && i < MAX_VERB_OPENINGS;i++) {
                 if (ch != CH(off + i)) {
                     break;
                 }
@@ -497,7 +500,7 @@ namespace AB {
             }
             else if (it->s_type == S_ATTRIBUTE) {
                 auto next = std::next(it);
-                if (it != mark_chain.begin()) {
+                if (it != mark_chain.begin() && std::prev(it)->solved) {
                     auto prev = std::prev(it);
                     /* Need to test if btw prev and attribute there is only whitespace */
                     auto prev_bound = prev->start_ptr->true_bounds.back();

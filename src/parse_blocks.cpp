@@ -241,6 +241,7 @@ namespace AB {
          * We already know that the segment will be of the flag of above */
         if (repeated_markers.marker && !above_container->closed) {
             seg->flags = above_container->flag;
+            seg->blank_line = false;
             seg->b_bounds.end = seg->end;
             seg->b_bounds.post = seg->end;
         }
@@ -387,6 +388,7 @@ namespace AB {
                     seg->flags = HR_OPENER;
                     seg->b_bounds.pre = off;
                     seg->b_bounds.beg = off + count;
+                    this_segment_end = seg->end;
                     b_solved = FULL;
                     seg->type = BLOCK_HR;
                     break;

@@ -1,3 +1,5 @@
+a `` `verbatim` ``
+
 # Inline and basics
 
 ## Basic
@@ -34,7 +36,7 @@ or span to use these attributes or not. Multiple attributes are separated by com
 ## Labels and refs
 
 It is possible to labelize items and make reference to them. To labelize anything,
-simply use the attribute `{l:my label}` right after the object.
+simply use the attribute `{{l:my label}}` right after the object.
 
 ### Refs
 
@@ -89,6 +91,7 @@ If the citation is in another document, one can use the `#` notation:
 
 ```AB
 I want to make a citation [[document#c:my citation]]
+```
 
 ### Footnotes
 It is also possible to do standard footnotes:
@@ -103,7 +106,7 @@ I want a footnote [[fn:foot]].
 # Links
 
 ```AB
-<https://example.com>
+https://example.com
 A link inside [text](example.com).
 Another link which is defined [later][link]
 
@@ -170,13 +173,14 @@ You can have only one blank line in between.
 ## List-markers
 
 ```AB
--   bullet
-+   bullet
-*   bullet
+- bullet
++ bullet
+* bullet
 
-x.  ordered
-x)  ordered
+x. ordered
+x) ordered
 (x) ordered
+```
 
 x can be one of the following:
 1   decimal-enumerated     (limited to 999999999)
@@ -184,7 +188,6 @@ a   lower alpha-enumerated (limited to zzz)
 A   upper alpha-enumerated (limited to ZZZ)
 i   lower roman-enumerated (limited to mmmcmxcix, i.e. 3999)
 I   upper roman-enumerated (limited to MMMCMXCIX, i.e. 3999)
-```
 
 Different type of markers in list interrupt current lists and create new lists.
 
@@ -356,8 +359,7 @@ The block is finished with three consecutive `:` or an interruption of a parents
 
 ```AB
 ::: name-of-block
-content
-:::
+    content
 ```
 
 Special blocks can be inside quotes and list. A special block inside a quote or list not
@@ -369,11 +371,10 @@ Here are special blocks used by MathNotes:
 
 ```AB
 ::: figure {ncols=2,nrows=3,center}
-![title of my image](image.png) any text written here is ignored
-![other image](image.png)
+    ![title of my image](image.png) any text written here is ignored
+    ![other image](image.png)
 
-Any text written here is taken as legend
-:::
+    Any text written here is taken as legend
 ```
 One image per line. 
 
