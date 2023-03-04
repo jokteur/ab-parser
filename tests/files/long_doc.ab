@@ -1,13 +1,15 @@
+This document is indented as a lengthy benchmarking tool.
+
 # Inline and basics
 
 ## Basic
-- Italic: `_italic_` or `{_italic_}` (the second is more explicit 
-  and covers edge cases, like `part{_italic_})`
-- Strong: `*strong*` or `{*strong*}
+- Italic: _italic_ or {_italic_} (the second is more explicit 
+  and covers edge cases, like part{_italic_})
+- Strong: *strong* or {*strong*}
 - Verbatime / code: `` `verbatim` ``{{lang:AB}}
-- Highlight: `{=highlighted=}`{{lang:AB}}
-- Underline: `{+underlined+}`{{lang:AB}}
-- Delete: `{-deleted-}`{{lang:AB}}
+- Highlight: {=highlighted=}
+- Underline: {+underlined+}
+- Delete: {-deleted-}
 
 ## Escaping characters
 Characters can be escaped using `\`. 
@@ -38,10 +40,10 @@ simply use the attribute `{{l:my label}}` right after the object.
 
 ### Refs
 
-To make references, one uses the syntax `[[my label]]` (like wiki links in Markdown).
-To make references to another document, one can use `[[document#label]]`. If there is 
+To make references, one uses the syntax [[my label]] (like wiki links in Markdown).
+To make references to another document, one can use [[document#label]]. If there is 
 a document with the same name as a label in current document and one wishes to use the
-current label, it is possible to solve the problem by specifying `[[#current label]]`
+current label, it is possible to solve the problem by specifying [[#current label]]
 (# alone designates current document)
 
 
@@ -64,65 +66,53 @@ A paragraph *starting* with the following regex ^\[.*\]: is considered as a defi
 We can have footnotes, links, images and citation definitions.
 
 Definitions cannot be part of another block, e.g.
-```AB
+
 >[def]: this won't be a definition
-```
 
 If one wants a definition on multiple lines, use four 4-space indentation:
 
-```AB
 [my def]: paragraph
 
     a second paragraph
-```
 
 ### Bibliography and citation
 It is possible to add a bibliography element and make reference to it by simply putting
 in a new line:
-```AB
+
 I want to make a citation [[c:my citation]]
 
 [c:my citation]: Foo bar, Markup languages proceedings, Volume 2, p.45, 2022
-```
 
 If the citation is in another document, one can use the `#` notation:
 
-```AB
 I want to make a citation [[document#c:my citation]]
-```
 
 ### Footnotes
 It is also possible to do standard footnotes:
-```AB
+
 I want a footnote [[fn:foot]].
 
 [fn:foot]: A note.
-```
 
 -----------------
 
 # Links
 
-```AB
 https://example.com
 A link inside [text](example.com).
 Another link which is defined [later][link]
 
 [link]: https://example.com
-```
 
 -----------------
 
 # Media
 
-```AB
 ![image.png]
 ![Image with title](image.png)
 ![Image defined later][image]
 
 [image]: image.png
-```
-
 
 -----------------
 
@@ -133,15 +123,11 @@ Header is a # followed by a space, with the number of # indicating the level (1-
 # Simple header {l:with label}
 ```
 
-```AB
 ## Second-level header
 ## with a second line
-```
 
-```AB
 # Header
 ## Sub-header
-```
 
 -----------------
 
@@ -158,19 +144,14 @@ Must be a list marker, preceeded by an optional space, and followed by a mandato
 To be still part of an item, one must align with the first char of the item.
 You can have only one blank line in between.
 
-```AB
 - Item 1
 
   Still in item 1
 - Item 2
 
 
-  Not item item 2 (too many blank lines)
-```
-
 ## List-markers
 
-```AB
 - bullet
 + bullet
 * bullet
@@ -178,7 +159,6 @@ You can have only one blank line in between.
 x. ordered
 x) ordered
 (x) ordered
-```
 
 x can be one of the following:
 1   decimal-enumerated     (limited to 999999999)
@@ -189,38 +169,31 @@ I   upper roman-enumerated (limited to MMMCMXCIX, i.e. 3999)
 
 Different type of markers in list interrupt current lists and create new lists.
 
-```AB
 - item
 1. item
 i. item
-```
 
 creates three different lists with each one list item.
 
 ### Ambiguous cases
 
 If one needs to start a paragraph with a list marker, one can simply escape the first char.
-```AB
+
 \I. wanted to start a simple paragraph and not a list.
-```
 
 If another alpha-enumerated item is in the list, and the list is not interrupted in between the two
 items, then it is automatically alpha-enumerated.
 
 Example:
-```AB
 i. Item
 j. Item
-```
 produces an alpha-enumerated list.
 
 To decide between ambiguous cases (alpha or roman?), if no other list items allow for the arbitration,
 then the lowest decimal equivalent enumeration wins.
 
 Example:
-```AB
 i. Item
-```
 
 In this case, in roman `i` corresponds to 1 and in alpha `i` corresponds to 9, 
 so the list is roman-enumerated.
@@ -235,42 +208,35 @@ to start with sublists.
 Sub-lists must have 4 spaces (or one tab) of indentation compared to the 
 parent list item, i.e. a sub-list must be preceeded by 4 spaces, a sub-sub-list by 8 spaces, etc.
 
-```AB
 - Item 1
     a) Sub-list item
     b) Sub-list item
         i. Sub-sub-list item
     c) Sub-list item
 - Item 2
-```
 
 It is not possible to begin with a sub-list, except if it is interrupted by a blockquote:
-```AB
 - - Not valid, the second dash is interpreted as text
 
 - > - Okay
-```
+
 -----------------
 
 # Block quotes
 
 Block Quotes:
 
-```AB
 > First level
 >> Second level
-```
 
 Block quotes do not allow lazy line continuation as in Markdown.
 
 ## Mixing block quotes and list items
 
-```AB
 > - Item 1
 >   > Start blockquote
 >   > continue blockquote
 > i. > - Valid list in blockquote in list in blockquote
-```
 
 -----------------
 
@@ -279,13 +245,11 @@ Block quotes do not allow lazy line continuation as in Markdown.
 To separate paragraphs, one must insert blank lines (can be with withespace).
 Paragraph have the least precedence, so they can be interrupted by any other block.
 
-```AB
 My first paragraph
 
 My second paragraph
 with a second line.
 # Interrupted by a header
-```
 
 -----------------
 
@@ -295,11 +259,9 @@ Three or more consecutive backticks can start a code block, with markup informat
 The closing consecutive backticks can't contain any chars except withespace beyond the line. \\ escape
 chars do not work in code blocks.
 
-````AB
 ```html
 <p>html code</p>
 ```
-````
 
 ````
 ```html
@@ -323,7 +285,6 @@ equation will be *inline* or *display*. Inline equations always fit on one line,
 and display equations are defined by being either on multiple lines or by being
 defined apart.
 
-```AB
 A paragraph can contain inline equations like $$f(x) = x^2$$ or display equations: $$f(x) = \\
 x^3$$.
 
@@ -332,14 +293,12 @@ A display equation can be defined also like this:
 $$g(x) = \sin(x)$$
 
 $$\int \cos(x)dx$$ is not display but inline.
-```
 
 Escaping rules:
-```AB
+
 $$
 I write \$$
 $$
-```
 
 -----------------
 
@@ -355,10 +314,8 @@ A special block starts with three consecutive `:` followed by a name and optiona
 Whitespaces are ignored for the name.
 The block is finished with three consecutive `:` or an interruption of a parents block.
 
-```AB
 ::: name-of-block
     content
-```
 
 Special blocks can be inside quotes and list. A special block inside a quote or list not
 closed will be closed when the parent block is closed. Special blocks cannot be nested.
@@ -367,13 +324,12 @@ Here are special blocks used by MathNotes:
 
 ## Figures
 
-```AB
 ::: figure {ncols=2,nrows=3,center}
     ![title of my image](image.png) any text written here is ignored
     ![other image](image.png)
 
     Any text written here is taken as legend
-```
+
 One image per line. 
 
 It is possible to specify number of cols with the attribute ncols.

@@ -57,6 +57,7 @@ namespace AB {
      * Verifies if a str can be converted into a positiv number
     */
     bool verify_positiv_number(const std::string& str) {
+        ZoneScoped;
         if (str.empty())
             return false;
         if (str.length() == 1 && ISDIGIT_(str[0]))
@@ -68,6 +69,7 @@ namespace AB {
         return true;
     }
     static std::string to_string(Context* ctx, OFFSET start, OFFSET end) {
+        ZoneScoped;
         std::string out;
         for (OFFSET i = start;i < end;i++) {
             out += CH(i);
@@ -75,6 +77,7 @@ namespace AB {
         return out;
     }
     static OFFSET find_next_line_off(Context* ctx, OFFSET off) {
+        ZoneScoped;
         OFFSET current_line_number = ctx->offset_to_line_number[off];
         if (current_line_number + 1 >= ctx->line_number_begs.size())
             return ctx->size;
@@ -82,6 +85,7 @@ namespace AB {
             return ctx->line_number_begs[current_line_number + 1] - 1;
     }
     bool check_for_whitespace_after(Context* ctx, OFFSET off) {
+        ZoneScoped;
         while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
             if (!ISWHITESPACE(off))
                 return false;
@@ -95,6 +99,7 @@ namespace AB {
     ***************/
 
     static void select_last_child_container(Context* ctx) {
+        ZoneScoped;
         if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
             ctx->above_container = *(ctx->above_container->children.end() - 1);
             if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
@@ -107,6 +112,7 @@ namespace AB {
     // === Analysing ===
 
     static void analyse_make_p(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
+        ZoneScoped;
         seg->attributes.clear();
         seg->b_bounds.pre = off;
         seg->b_bounds.beg = off;
@@ -115,6 +121,7 @@ namespace AB {
         *end = seg->end;
     }
     static void analyse_make_ul(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg, int indent) {
+        ZoneScoped;
         seg->b_bounds.pre = seg->start;
         seg->b_bounds.beg = (off + 1 == seg->end) ? off + 1 : off + 2;
         seg->indent = off + 2 - seg->start + indent;
@@ -124,6 +131,7 @@ namespace AB {
         seg->li_pre_marker = CH(off);
     }
     static inline int get_allowed_ws(int flag) {
+        ZoneScoped;
         if (flag & (QUOTE_OPENER | DEFINITION_OPENER))
             return 1;
         else
@@ -131,6 +139,7 @@ namespace AB {
     }
 
     static inline void get_name_and_attributes(Context* ctx, OFFSET* off, std::string& name, Attributes& attributes) {
+        ZoneScoped;
         for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '{' && CH(*off + 1) == '{') {
                 *off += 2;
@@ -154,6 +163,7 @@ namespace AB {
      * If it hasn't found any closing delimiter, then it return 0
     */
     static inline int check_for_closing_delimiters(Context* ctx, OFFSET* off, SegmentInfo* seg, char marker, int num_markers, bool allow_greater_number, bool allow_chars_before_closing, bool allow_attributes) {
+        ZoneScoped;
         bool check_ws_before = allow_chars_before_closing
             || !allow_chars_before_closing && CHECK_WS_BEFORE(*off);
 
@@ -205,6 +215,7 @@ namespace AB {
     }
 
     bool analyse_segment(Context* ctx, OFFSET off, OFFSET* end, SegmentInfo* seg) {
+        ZoneScoped;
         bool ret = true;
 
         *seg = SegmentInfo();
@@ -593,6 +604,7 @@ namespace AB {
     // === Processing ===
 
     static void add_container(Context* ctx, BLOCK_TYPE block_type, const Boundaries& bounds, SegmentInfo* seg, std::shared_ptr<BlockDetail> detail = nullptr) {
+        ZoneScoped;
         ContainerPtr container = std::make_shared<Container>();
         container->b_type = block_type;
         container->content_boundaries.push_back(bounds);
@@ -612,6 +624,7 @@ namespace AB {
 
     /* Pass a non-null ptr and non root ptr to this function */
     static inline ContainerPtr select_parent(ContainerPtr ptr) {
+        ZoneScoped;
         ContainerPtr parent = ptr->parent;
         if (parent->b_type == BLOCK_UL || parent->b_type == BLOCK_OL)
             parent = parent->parent;
@@ -621,11 +634,13 @@ namespace AB {
     /* To avoid `if (ctx->current_container == nullptr)`, we have to make
     * sure to never call this function when current_container is BLOCK_DOCUMENT */
     static void close_current_container(Context* ctx) {
+        ZoneScoped;
         ctx->current_container->closed = true;
         ctx->current_container = ctx->current_container->parent;
     }
 
     bool make_list_item(Context* ctx, SegmentInfo* seg, OFFSET off) {
+        ZoneScoped;
         ContainerPtr above_container = ctx->above_container;
 
         bool is_ul = seg->acc.empty();
@@ -748,6 +763,7 @@ namespace AB {
      * This process is context dependent.
      */
     bool process_segment(Context* ctx, OFFSET* off, SegmentInfo* seg) {
+        ZoneScoped;
         bool ret = true;
 
         if (seg->skip_segment)
@@ -920,6 +936,7 @@ namespace AB {
     }
 
     bool parse_blocks(Context* ctx) {
+        ZoneScoped;
         bool ret = true;
 
         OFFSET off = 0;
@@ -946,6 +963,7 @@ namespace AB {
                 off++;
             }
         }
+        // FrameMarkStart("End parsing");
         return ret;
     abort:
         return ret;

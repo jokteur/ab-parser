@@ -27,6 +27,7 @@ namespace AB {
     static const int S_ATTRIBUTE = 0x20000;
 
     SPAN_TYPE flag_to_type(int flag) {
+        ZoneScoped;
         switch (flag) {
         case S_EM_SIMPLE:
         case S_EM:
@@ -163,6 +164,7 @@ namespace AB {
     typedef std::list<Mark> MarkChain;
 
     inline bool check_match(Context* ctx, const std::string& str, int& i, OFFSET off, OFFSET end) {
+        ZoneScoped;
         int count = 0;
         for (;str[i] != 0 && off + i < end;i++) {
             if (str[i] != CH(off + i)) {
@@ -177,6 +179,7 @@ namespace AB {
     }
 
     void add_to_flag_count(std::unordered_map<int, int>& flag_count, int flag) {
+        ZoneScoped;
         if (flag_count.find(flag) != flag_count.end()) {
             flag_count[flag]++;
         }
@@ -186,16 +189,19 @@ namespace AB {
     }
     /* No testing of bounds */
     void remove_from_flag_count(std::unordered_map<int, int>& flag_count, int flag) {
+        ZoneScoped;
         flag_count[flag]--;
     }
 
     bool is_count_positive(std::unordered_map<int, int>& flag_count, int flag) {
+        ZoneScoped;
         if (flag_count.find(flag) != flag_count.end() && flag_count[flag] > 0)
             return true;
         return false;
     }
 
     inline bool close_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET* off, OFFSET end, const std::vector<AB::Boundaries>& content_bounds, std::unordered_map<int, int>& flag_count) {
+        ZoneScoped;
         bool found_match = true;
         OFFSET i = 0;
         OFFSET jump_to = *off;
@@ -307,6 +313,7 @@ namespace AB {
     }
 
     inline int open_mark(Context* ctx, MarkChain& mark_chain, const Mark& mark, OFFSET off, OFFSET end, bool ws_or_punct_before, std::unordered_map<int, int>& flag_count) {
+        ZoneScoped;
         bool found_match = true;
         OFFSET i = 0;
         int mark_count = 0;
@@ -350,6 +357,7 @@ namespace AB {
     }
 
     bool lookahead_autolink(Context* ctx, MarkChain& mark_chain, OFFSET* off, OFFSET end) {
+        ZoneScoped;
         /* Basic efficient sanity check, look for http:// or https:// */
         if (*off + 7 >= end)
             return false;
@@ -384,6 +392,7 @@ namespace AB {
     }
 
     bool create_text(Context* ctx, std::vector<Boundaries>::iterator& b_it, std::vector<Boundaries>::iterator& b_end_it, TEXT_TYPE type, OFFSET start, OFFSET end) {
+        ZoneScoped;
         bool ret = true;
         if (start == end || end > (OFFSET)ctx->size)
             return true;
@@ -423,6 +432,7 @@ namespace AB {
         return ret;
     }
     bool parse_spans(Context* ctx, ContainerPtr ptr) {
+        ZoneScoped;
         bool ret = true;
 
         MarkChain mark_chain;

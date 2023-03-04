@@ -63,6 +63,8 @@ namespace AB {
         return ret;
     }
 
+    /* It should 100% be possible to avoid this memory
+     * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
         ctx->offset_to_line_number.reserve(ctx->size + 1);
         /* The first seg always starts at 0 */
@@ -80,6 +82,7 @@ namespace AB {
     }
 
     bool process_doc(Context* ctx) {
+        ZoneScopedN("Process_doc");
         bool ret = true;
 
         generate_line_number_data(ctx);
@@ -88,8 +91,10 @@ namespace AB {
         * can find */
         CHECK_AND_RET(parse_blocks(ctx));
         CHECK_AND_RET(send_blocks(ctx));
+        // FrameCMarkEnd("Processing doc");
 
     abort:
+        // FrameCMarkEnd("Processing doc");
         return ret;
     }
 
@@ -99,8 +104,10 @@ namespace AB {
         ctx.size = size;
         ctx.parser = parser;
 
+
         process_doc(&ctx);
 
+        FrameMark;
         return 0;
     }
 }

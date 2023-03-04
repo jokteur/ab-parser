@@ -93,7 +93,7 @@ TEST_SUITE("Parser") {
                 outfile_html << out_html;
                 outfile_ast << out_ast;
 
-                if (name != "_testbench") {
+                if (name != "_testbench" && name != "long_doc") {
                     if ((ret & AST_FAILED) && (ret & HTML_FAILED)) {
                         CHECK_MESSAGE(false, "Failed both AST and HTML for test case '", name, "' ; see outputs");
                     }
