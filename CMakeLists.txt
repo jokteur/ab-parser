@@ -25,7 +25,8 @@ if(CMAKE_SOURCE_DIR STREQUAL PROJECT_SOURCE_DIR)
     message("Testing activated")
     add_subdirectory(external/doctest)
     option(TRACY_ENABLE "" ON)
-    option(TRACY_ON_DEMAND "" ON)
+
+    option(TRACY_ON_DEMAND "" OFF)
     add_subdirectory(external/tracy)
     add_subdirectory(tests)
 

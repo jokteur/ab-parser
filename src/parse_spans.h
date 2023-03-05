@@ -5,5 +5,5 @@
 #include "internal.h"
 
 namespace AB {
-    bool parse_spans(Context* ctx, ContainerPtr ptr);
+    bool parse_spans(Context* ctx, Container* ptr);
 };

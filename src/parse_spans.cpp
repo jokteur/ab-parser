@@ -431,7 +431,7 @@ namespace AB {
     abort:
         return ret;
     }
-    bool parse_spans(Context* ctx, ContainerPtr ptr) {
+    bool parse_spans(Context* ctx, Container* ptr) {
         ZoneScoped;
         bool ret = true;
 

@@ -101,9 +101,9 @@ namespace AB {
     static void select_last_child_container(Context* ctx) {
         ZoneScoped;
         if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
-            ctx->above_container = *(ctx->above_container->children.end() - 1);
+            ctx->above_container = ctx->above_container->children.back();
             if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
-                ctx->above_container = *(ctx->above_container->children.end() - 1);
+                ctx->above_container = ctx->above_container->children.back();
             }
             ctx->current_container = ctx->above_container;
         }
@@ -223,7 +223,7 @@ namespace AB {
         seg->end = find_next_line_off(ctx, off);
         seg->line_number = ctx->offset_to_line_number[off];
         OFFSET this_segment_end = seg->end;
-        ContainerPtr above_container = ctx->above_container;
+        Container* above_container = ctx->above_container;
 
         int line_start = off;
 
@@ -605,11 +605,11 @@ namespace AB {
 
     static void add_container(Context* ctx, BLOCK_TYPE block_type, const Boundaries& bounds, SegmentInfo* seg, std::shared_ptr<BlockDetail> detail = nullptr) {
         ZoneScoped;
-        ContainerPtr container = std::make_shared<Container>();
+        Container* parent = ctx->current_container;
+        Container* container = new Container(); /* Containers will be deleted at the end of parsing in parse.cpp */
         container->b_type = block_type;
         container->content_boundaries.push_back(bounds);
         container->detail = detail;
-        ContainerPtr parent = ctx->current_container;
         container->parent = parent;
         container->indent = seg->indent;
         container->flag = seg->flags;
@@ -618,14 +618,14 @@ namespace AB {
             parent->last_non_empty_child_line = seg->line_number;
         }
         ctx->containers.push_back(container);
-        ctx->current_container = *(ctx->containers.end() - 1);
-        parent->children.push_back(ctx->current_container);
+        ctx->current_container = container;
+        parent->children.push_back(container);
     }
 
     /* Pass a non-null ptr and non root ptr to this function */
-    static inline ContainerPtr select_parent(ContainerPtr ptr) {
+    static inline Container* select_parent(Container* ptr) {
         ZoneScoped;
-        ContainerPtr parent = ptr->parent;
+        Container* parent = ptr->parent;
         if (parent->b_type == BLOCK_UL || parent->b_type == BLOCK_OL)
             parent = parent->parent;
         return parent;
@@ -641,12 +641,12 @@ namespace AB {
 
     bool make_list_item(Context* ctx, SegmentInfo* seg, OFFSET off) {
         ZoneScoped;
-        ContainerPtr above_container = ctx->above_container;
+        Container* above_container = ctx->above_container;
 
         bool is_ul = seg->acc.empty();
         char pre_marker = seg->li_pre_marker;
         char post_marker = seg->li_post_marker;
-        ContainerPtr above_parent = (above_container != nullptr) ? above_container->parent : nullptr;
+        Container* above_parent = (above_container != nullptr) ? above_container->parent : nullptr;
         bool is_above_ol = above_container != nullptr && above_parent->b_type == BLOCK_OL;
         bool is_above_ul = above_container != nullptr && above_parent->b_type == BLOCK_UL;
 
@@ -798,7 +798,7 @@ namespace AB {
          * closely follows above_container, until above_container is set to nullptr, in which
          * case current_container always points to the last inserted block.
          */
-        ContainerPtr& above_container = ctx->above_container;
+        Container* above_container = ctx->above_container;
 
         bool set_above_to_nullptr = false;
 
@@ -816,7 +816,7 @@ namespace AB {
         }
 
         if (seg->blank_line) {
-            ContainerPtr parent = ctx->containers[0]; // By default, blank lines belong to ROOT
+            Container* parent = ctx->containers.front(); // By default, blank lines belong to ROOT
             /* Blank lines should always be commited to parent above container */
             if (above_container != nullptr) {
                 parent = select_parent(above_container);
@@ -825,8 +825,10 @@ namespace AB {
             add_container(ctx, BLOCK_HIDDEN, { seg->line_number, seg->start, seg->start, seg->end, seg->end }, seg);
             close_current_container(ctx);
         }
-        if (set_above_to_nullptr)
+        if (set_above_to_nullptr) {
+            ctx->above_container = nullptr;
             above_container = nullptr;
+        }
 
 #define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
 
@@ -942,15 +944,16 @@ namespace AB {
         OFFSET off = 0;
 
         // Add root container
-        ContainerPtr doc_container = std::make_shared<Container>();
+        Container* doc_container = new Container();
         doc_container->b_type = BLOCK_DOC;
         ctx->containers.push_back(doc_container);
-        ctx->current_container = *(ctx->containers.end() - 1);
+        ctx->current_container = ctx->containers.front();
 
         SegmentInfo current_seg;
 
         int depth = -1;
         int indent = 0;
+
         while (off < (int)ctx->size) {
             select_last_child_container(ctx);
             CHECK_AND_RET(analyse_segment(ctx, off, &off, &current_seg));
@@ -958,12 +961,11 @@ namespace AB {
 
             // We arrived at a the end of a line
             if (off >= current_seg.end) {
-                ctx->above_container = *ctx->containers.begin();
+                ctx->above_container = ctx->containers.front();
                 ctx->current_container = ctx->above_container;
                 off++;
             }
         }
-        // FrameMarkStart("End parsing");
         return ret;
     abort:
         return ret;

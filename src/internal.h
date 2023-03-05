@@ -3,13 +3,8 @@
 #include <memory>
 
 #include "definitions.h"
-
-#if defined ( __clang__ ) || defined ( __GNUC__ )
-#define TracyFunction __PRETTY_FUNCTION__
-#elif defined ( _MSC_VER )
-# define TracyFunction __FUNCSIG__
-#endif
-#include <tracy/Tracy.hpp>
+#include "profiling.h"
+#include <iostream>
 
 namespace AB {
       /*****************
@@ -97,12 +92,24 @@ namespace AB {
 
             BLOCK_TYPE b_type;
             std::shared_ptr<BlockDetail> detail;
-            ContainerPtr parent = nullptr;
-            std::vector<ContainerPtr> children;
+            Container* parent = nullptr;
+            std::vector<Container*> children;
             std::vector<Boundaries> content_boundaries;
             int last_non_empty_child_line = -1;
             int flag = 0;
             int indent = 0;
+
+            static int alloc_count;
+
+            void* operator new(std::size_t count) {
+                  auto ptr = malloc(count);
+                  TracyAlloc(ptr, count);
+                  return ptr;
+            }
+            void operator delete (void* ptr) noexcept {
+                  TracyFree(ptr);
+                  free(ptr);
+            }
       };
 
       /**************
@@ -117,9 +124,9 @@ namespace AB {
             SIZE size;
             const Parser* parser;
 
-            std::vector<ContainerPtr> containers;
-            ContainerPtr current_container;
-            ContainerPtr above_container = nullptr;
+            std::vector<Container*> containers;
+            Container* current_container;
+            Container* above_container = nullptr;
 
             std::vector<int> offset_to_line_number;
             std::vector<int> line_number_begs;

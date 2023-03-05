@@ -56,10 +56,6 @@ int main() {
     };
 
     // Pause program
-    std::string x;
-    std::cout << "Type any char to start profiling" << std::endl;
-    std::cin >> x;
-
 
     std::ifstream ifs("long_doc.ab");
     std::string txt_input((std::istreambuf_iterator<char>(ifs)), (std::istreambuf_iterator<char>()));
@@ -68,15 +64,18 @@ int main() {
     for (int j = 0;j < 1000;j++) {
         long_input += txt_input;
     }
-    auto t1 = std::chrono::high_resolution_clock::now();
-    AB::parse(long_input.c_str(), (AB::SIZE)long_input.length(), &parser);
-    auto t2 = std::chrono::high_resolution_clock::now();
-    float timing = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.f;
 
-    std::cout << "Parsing of " << std::fixed << std::setprecision(2)
-        << pretty_print((float)long_input.length())
-        << " of text took " << timing << " ms, or "
-        << pretty_print((float)1e3 * (float)long_input.length() / (float)timing) << "/s"
-        << std::endl;
+    for (int i = 0;i < 10;i++) {
+        auto t1 = std::chrono::high_resolution_clock::now();
+        AB::parse(long_input.c_str(), (AB::SIZE)long_input.length(), &parser);
+        auto t2 = std::chrono::high_resolution_clock::now();
+        float timing = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.f;
+
+        std::cout << "Parsing of " << std::fixed << std::setprecision(2)
+            << pretty_print((float)long_input.length())
+            << " of text took " << timing << " ms, or "
+            << pretty_print((float)1e3 * (float)long_input.length() / (float)timing) << "/s"
+            << std::endl;
+    }
 
 }

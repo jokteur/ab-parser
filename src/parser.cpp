@@ -36,8 +36,12 @@
 #include <iostream>
 #include <memory>
 
+
 namespace AB {
-    bool enter_block(Context* ctx, ContainerPtr ptr) {
+    int Container::alloc_count = 0;
+
+    bool enter_block(Context* ctx, Container* ptr) {
+        ZoneScoped;
         bool ret = true;
         CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->attributes, ptr->detail));
         for (auto child : ptr->children) {
@@ -55,8 +59,9 @@ namespace AB {
     }
 
     bool send_blocks(Context* ctx) {
+        ZoneScoped;
         bool ret = true;
-        ret = enter_block(ctx, *(ctx->containers.begin()));
+        ret = enter_block(ctx, ctx->containers.front());
 
         // abort:
         //     return ret;
@@ -66,6 +71,7 @@ namespace AB {
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
+        ZoneScoped;
         ctx->offset_to_line_number.reserve(ctx->size + 1);
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
@@ -82,7 +88,7 @@ namespace AB {
     }
 
     bool process_doc(Context* ctx) {
-        ZoneScopedN("Process_doc");
+        ZoneScoped;
         bool ret = true;
 
         generate_line_number_data(ctx);
@@ -91,14 +97,13 @@ namespace AB {
         * can find */
         CHECK_AND_RET(parse_blocks(ctx));
         CHECK_AND_RET(send_blocks(ctx));
-        // FrameCMarkEnd("Processing doc");
 
     abort:
-        // FrameCMarkEnd("Processing doc");
         return ret;
     }
 
     bool parse(const CHAR* text, SIZE size, const Parser* parser) {
+        ZoneScoped;
         Context ctx;
         ctx.text = text;
         ctx.size = size;
@@ -106,6 +111,12 @@ namespace AB {
 
 
         process_doc(&ctx);
+
+        for (auto ptr : ctx.containers) {
+            delete ptr;
+        }
+
+        // std::cout << "Alloc left: " << Container::alloc_count << std::endl;
 
         FrameMark;
         return 0;
