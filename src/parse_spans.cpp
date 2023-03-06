@@ -160,6 +160,23 @@ namespace AB {
         Mark{ S_ATTRIBUTE, "{{", "}}", false, SELECT_ALL}
         /* Autolinks handled by lookahead_autolink*/
     };
+#define M_EM 0
+#define M_EM_SIMPLE 1
+#define M_STRONG 2
+#define M_STRONG_SIMPLE 3
+#define M_VERBATIME 4
+#define M_HIGHLIGHT 5
+#define M_UNDERLINE 6
+#define M_DELETE 7
+#define M_INSERTED_REF 8
+#define M_REF 9
+#define M_IMG_TITLE 10
+#define M_IMG_DEF 11
+#define M_IMG 12
+#define M_LINK 13
+#define M_LINKDEF 14
+#define M_LATEX 15
+#define M_ATTRIBUTE 16
 
     typedef std::list<Mark> MarkChain;
 
@@ -431,76 +448,127 @@ namespace AB {
     abort:
         return ret;
     }
-    bool parse_spans(Context* ctx, Container* ptr) {
+
+    inline bool main_loop(Context* ctx, Container* ptr, MarkChain& mark_chain) {
         ZoneScoped;
         bool ret = true;
-
-        MarkChain mark_chain;
-
         std::unordered_map<int, int> flag_count;
 
-        if (ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
-            for (auto& bound : ptr->content_boundaries) {
-                bool prev_is_whitespace = true;
-                bool prev_is_punctuation = false;
-                /* Kind of a hack to avoid making ![[]] become !<ref />*/
-                bool prev_is_exclamation_or_bracket = false;
-                for (OFFSET off = bound.beg;off < bound.end;) {
-                    if (prev_is_exclamation_or_bracket) {
-                        prev_is_exclamation_or_bracket = false;
-                        off++;
-                        continue;
-                    }
-                    if (CH(off) == '\\') {
-                        /* Edge case for `\` */
-                        if (!mark_chain.empty() && mark_chain.back().s_type & S_VERBATIME && CH(off + 1) == '`')
-                            off++;
+#define OPEN_MARK(num) {int mark_count = open_mark(ctx, mark_chain, marks[(num)], off, bound.end, prev_is_punctuation || prev_is_whitespace, flag_count); \
+                        if (mark_count > advance) advance = mark_count; }
 
-                        else
-                            off += 2;
-                        continue;
-                    }
-                    // else if (CH(off) == '[' || CH(off) == '!')
-                    //     prev_is_exclamation_or_bracket = true;
-                    else if (ISWHITESPACE(off))
-                        prev_is_whitespace = true;
-                    else if (ISPUNCT(off))
-                        prev_is_punctuation = true;
-                    else if (CH(off) == 'h') {
-                        bool success = lookahead_autolink(ctx, mark_chain, &off, bound.end);
-                        if (success)
-                            continue;
-                    }
-
-                    bool success = false;
-                    int advance = 1;
-
-                    bool opening_char = opening_marks.find(CH(off)) != opening_marks.end();
-                    bool closing_char = closing_marks.find(CH(off)) != closing_marks.end();
-
-                    if (opening_char || closing_char)
-                        for (auto& mark : marks) {
-                            /* Search first for closing marks */
-                            if (closing_char && is_count_positive(flag_count, mark.s_type)) {
-                                success = close_mark(ctx, mark_chain, mark, &off, bound.end, ptr->content_boundaries, flag_count);
-                                if (success) {
-                                    remove_from_flag_count(flag_count, mark.s_type);
-                                    advance = 0;
-                                    break;
-                                }
-                            }
-                            /* Search then for opening marks */
-                            if (opening_char) {
-                                int mark_count = open_mark(ctx, mark_chain, mark, off, bound.end, prev_is_punctuation || prev_is_whitespace, flag_count);
-                                if (mark_count > advance)
-                                    advance = mark_count;
-                            }
-                        }
-                    if (!success)
-                        off += advance;
+#define CLOSE_MARK(num) if (!success && is_count_positive(flag_count, marks[(num)].s_type)) { \
+                    success = close_mark(ctx, mark_chain, marks[(num)], &off, bound.end, ptr->content_boundaries, flag_count); \
+                    if (success) { remove_from_flag_count(flag_count, marks[(num)].s_type); advance = 0; } \
                 }
+
+        for (auto& bound : ptr->content_boundaries) {
+            bool prev_is_whitespace = true;
+            bool prev_is_punctuation = false;
+            /* Kind of a hack to avoid making ![[]] become !<ref />*/
+            bool prev_is_exclamation_or_bracket = false;
+            for (OFFSET off = bound.beg;off < bound.end;) {
+                bool success = false;
+                int advance = 1;
+
+                if (CH(off) == '\\') {
+                    /* Edge case for `\` */
+                    if (!mark_chain.empty() && mark_chain.back().s_type & S_VERBATIME && CH(off + 1) == '`')
+                        off++;
+
+                    else
+                        off += 2;
+                    continue;
+                }
+
+                else if (ISWHITESPACE(off))
+                    prev_is_whitespace = true;
+                /* Opening marks, num based on table marks */
+                else if (CH(off) == '{') {
+                    OPEN_MARK(M_EM);
+                    OPEN_MARK(M_STRONG);
+                    OPEN_MARK(M_HIGHLIGHT);
+                    OPEN_MARK(M_UNDERLINE);
+                    OPEN_MARK(M_DELETE);
+                    OPEN_MARK(M_ATTRIBUTE);
+                }
+                else if (CH(off) == '*') {
+                    CLOSE_MARK(M_STRONG);
+                    CLOSE_MARK(M_STRONG_SIMPLE);
+                    if (!success) {
+                        OPEN_MARK(M_STRONG_SIMPLE);
+                    }
+                }
+                else if (CH(off) == '_') {
+                    CLOSE_MARK(M_EM);
+                    CLOSE_MARK(M_EM_SIMPLE);
+                    if (!success) {
+                        OPEN_MARK(M_EM_SIMPLE);
+                    }
+                }
+                else if (CH(off) == '`') {
+                    CLOSE_MARK(M_VERBATIME);
+                    if (!success) {
+                        OPEN_MARK(M_VERBATIME);
+                    }
+                }
+                else if (CH(off) == '!') {
+                    OPEN_MARK(M_INSERTED_REF);
+                    OPEN_MARK(M_IMG_TITLE);
+                    OPEN_MARK(M_IMG_DEF);
+                    OPEN_MARK(M_IMG);
+                }
+                else if (CH(off) == '[') {
+                    OPEN_MARK(M_REF);
+                    OPEN_MARK(M_LINK);
+                    OPEN_MARK(M_LINKDEF);
+                }
+                else if (CH(off) == '$') {
+                    CLOSE_MARK(M_LATEX);
+                    if (!success) {
+                        OPEN_MARK(M_LATEX);
+                    }
+                }
+                else if (CH(off) == 'h') {
+                    bool success = lookahead_autolink(ctx, mark_chain, &off, bound.end);
+                    if (success)
+                        continue;
+                }
+                else if (CH(off) == '=') {
+                    CLOSE_MARK(M_HIGHLIGHT);
+                }
+                else if (CH(off) == '+') {
+                    CLOSE_MARK(M_UNDERLINE);
+                }
+                else if (CH(off) == '-') {
+                    CLOSE_MARK(M_DELETE);
+                }
+                else if (CH(off) == ']') {
+                    CLOSE_MARK(M_INSERTED_REF);
+                    CLOSE_MARK(M_REF);
+                    CLOSE_MARK(M_IMG_TITLE);
+                    CLOSE_MARK(M_IMG_DEF);
+                    CLOSE_MARK(M_IMG);
+                    CLOSE_MARK(M_LINK);
+                    CLOSE_MARK(M_LINKDEF);
+                }
+                else if (CH(off) == '}') {
+                    CLOSE_MARK(M_ATTRIBUTE);
+                }
+
+                if (ISPUNCT(off))
+                    prev_is_punctuation = true;
+
+                if (!success)
+                    off += advance;
             }
         }
+        return ret;
+    }
+
+    inline bool mark_cleanup(Context* ctx, MarkChain& mark_chain) {
+        ZoneScoped;
+        bool ret = true;
 
         /* Cleanup of unmatched spans and attribute creation */
         std::vector<std::list<Mark>::iterator> to_erase;
@@ -541,6 +609,12 @@ namespace AB {
         for (auto it : to_erase) {
             mark_chain.erase(it);
         }
+        return ret;
+    }
+
+    bool parse_text(Context* ctx, Container* ptr, MarkChain& mark_chain) {
+        ZoneScoped;
+        bool ret = true;
 
         /* Pass the spans to the caller of the library */
         auto bound_it = ptr->content_boundaries.begin();
@@ -640,14 +714,36 @@ namespace AB {
                 CHECK_AND_RET(ctx->parser->leave_span(flag_to_type(mark.s_type)));
             }
         }
-
-        if (ptr->b_type == BLOCK_CODE) {
-            t_type = TEXT_CODE;
-        }
-        else if (ptr->b_type == BLOCK_LATEX) {
-            t_type = TEXT_LATEX;
-        }
         CHECK_AND_RET(create_text(ctx, bound_it, bound_end, t_type, text_off, ptr->content_boundaries.back().end));
+
+        return ret;
+    abort:
+        return ret;
+    }
+
+    bool parse_spans(Context* ctx, Container* ptr) {
+        ZoneScoped;
+        bool ret = true;
+
+        MarkChain mark_chain;
+        if (ptr->b_type != BLOCK_CODE && ptr->b_type != BLOCK_LATEX) {
+            main_loop(ctx, ptr, mark_chain);
+            mark_cleanup(ctx, mark_chain);
+            parse_text(ctx, ptr, mark_chain);
+        }
+        else {
+            TEXT_TYPE t_type;
+            if (ptr->b_type == BLOCK_CODE) {
+                t_type = TEXT_CODE;
+            }
+            else if (ptr->b_type == BLOCK_LATEX) {
+                t_type = TEXT_LATEX;
+            }
+            auto& bounds = ptr->content_boundaries;
+            auto b_start = bounds.begin();
+            auto b_end = bounds.end();
+            CHECK_AND_RET(create_text(ctx, b_start, b_end, t_type, bounds.front().beg, bounds.back().end));
+        }
         return true;
     abort:
         return ret;
