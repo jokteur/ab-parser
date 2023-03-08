@@ -1,4 +1,5 @@
 #include "parse_blocks.h"
+#include "parse_spans.h" 
 #include "parse_commons.h"
 #include "internal.h"
 
@@ -602,11 +603,60 @@ namespace AB {
     }
 
     // === Processing ===
+    bool enter_block(Context* ctx, Container* ptr) {
+        ZoneScoped;
+        bool ret = true;
+        CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->attributes, ptr->detail));
+        for (auto child : ptr->children) {
+            if (child->b_type == BLOCK_EMPTY)
+                continue;
+            CHECK_AND_RET(enter_block(ctx, child));
+        }
+        if (is_leaf_block(ptr->b_type)) {
+            parse_spans(ctx, ptr);
+        }
+        CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
+        return ret;
+    abort:
+        return ret;
+    }
+
+    bool send_previous_blocks(Context* ctx) {
+        bool ret = true;
+        Container* root = ctx->containers.front();
+        for (auto child : root->children)
+            CHECK_AND_RET(enter_block(ctx, child));
+        root->children.clear();
+        ctx->above_container = root;
+        ctx->last_free_mem_it = ctx->containers.begin() + 1;
+        /* Reset memory for all "freed" memory */
+        for (auto it = ctx->last_free_mem_it; it != ctx->containers.end();it++) {
+            (*it)->children.clear();
+            (*it)->closed = false;
+            (*it)->content_boundaries.clear();
+            (*it)->repeated_markers = RepeatedMarker{};
+            (*it)->last_non_empty_child_line = -1;
+        }
+        return ret;
+    abort:
+        return ret;
+    }
 
     static void add_container(Context* ctx, BLOCK_TYPE block_type, const Boundaries& bounds, SegmentInfo* seg, std::shared_ptr<BlockDetail> detail = nullptr) {
         ZoneScoped;
         Container* parent = ctx->current_container;
-        Container* container = new Container(); /* Containers will be deleted at the end of parsing in parse.cpp */
+        /* This means there is some already allocated memory
+         * to be used */
+        bool is_free_memory = ctx->last_free_mem_it != ctx->containers.end();
+
+        Container* container;
+        if (is_free_memory) {
+            container = *ctx->last_free_mem_it;
+        }
+        else {
+            container = new Container(); /* New containers will be deleted at the end of parsing in parse.cpp */
+        }
+
         container->b_type = block_type;
         container->content_boundaries.push_back(bounds);
         container->detail = detail;
@@ -617,7 +667,13 @@ namespace AB {
         if (block_type != BLOCK_HIDDEN) {
             parent->last_non_empty_child_line = seg->line_number;
         }
-        ctx->containers.push_back(container);
+        if (is_free_memory) {
+            ctx->last_free_mem_it++;
+        }
+        else {
+            ctx->containers.push_back(container);
+            ctx->last_free_mem_it = ctx->containers.end();
+        }
         ctx->current_container = container;
         parent->children.push_back(container);
     }
@@ -812,6 +868,10 @@ namespace AB {
                     close_current_container(ctx);
                 }
                 set_above_to_nullptr = true;
+
+                if (above_container->parent->b_type == BLOCK_DOC && !seg->blank_line) {
+                    send_previous_blocks(ctx);
+                }
             }
         }
 
@@ -839,6 +899,9 @@ namespace AB {
             else {
                 add_container(ctx, BLOCK_P, { seg->line_number, seg->start, seg->first_non_blank, seg->end, seg->end }, seg);
             }
+        }
+        else if (seg->flags & HR_OPENER) {
+            add_container(ctx, BLOCK_HR, { seg->line_number, seg->start, seg->start, seg->end, seg->end }, seg);
         }
         else if (seg->flags & H_OPENER) {
             bool new_header = true;
@@ -941,18 +1004,19 @@ namespace AB {
         ZoneScoped;
         bool ret = true;
 
+
         OFFSET off = 0;
+        SegmentInfo current_seg;
 
         // Add root container
         Container* doc_container = new Container();
         doc_container->b_type = BLOCK_DOC;
         ctx->containers.push_back(doc_container);
         ctx->current_container = ctx->containers.front();
+        /* Enter directly into DOC */
+        CHECK_AND_RET(ctx->parser->enter_block(BLOCK_DOC, {}, {}, nullptr));
 
-        SegmentInfo current_seg;
-
-        int depth = -1;
-        int indent = 0;
+        ctx->last_free_mem_it = ctx->containers.begin() + 1;
 
         while (off < (int)ctx->size) {
             select_last_child_container(ctx);
@@ -966,6 +1030,10 @@ namespace AB {
                 off++;
             }
         }
+
+        CHECK_AND_RET(send_previous_blocks(ctx));
+        CHECK_AND_RET(ctx->parser->leave_block(BLOCK_DOC));
+
         return ret;
     abort:
         return ret;

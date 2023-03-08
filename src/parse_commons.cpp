@@ -96,7 +96,7 @@ namespace AB {
         for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '\\')
                 continue;
-            acc += CH(ch);
+            acc += CH(*off);
             if (CH(*off) == ch) {
                 found_end_char = true;
                 break;

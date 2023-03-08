@@ -86,6 +86,7 @@ namespace AB {
       typedef std::shared_ptr<Container> ContainerPtr;
       struct Container {
             bool closed = false;
+            bool erase_block = false;
             RepeatedMarker repeated_markers;
 
             Attributes attributes;
@@ -125,6 +126,9 @@ namespace AB {
             const Parser* parser;
 
             std::vector<Container*> containers;
+            /* This allows us to reuse previously allocated
+             * memory */
+            std::vector<Container*>::iterator last_free_mem_it;
             Container* current_container;
             Container* above_container = nullptr;
 

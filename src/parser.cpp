@@ -40,34 +40,6 @@
 namespace AB {
     int Container::alloc_count = 0;
 
-    bool enter_block(Context* ctx, Container* ptr) {
-        ZoneScoped;
-        bool ret = true;
-        CHECK_AND_RET(ctx->parser->enter_block(ptr->b_type, ptr->content_boundaries, ptr->attributes, ptr->detail));
-        for (auto child : ptr->children) {
-            if (child->b_type == BLOCK_EMPTY)
-                continue;
-            CHECK_AND_RET(enter_block(ctx, child));
-        }
-        if (is_leaf_block(ptr->b_type)) {
-            parse_spans(ctx, ptr);
-        }
-        CHECK_AND_RET(ctx->parser->leave_block(ptr->b_type));
-        return ret;
-    abort:
-        return ret;
-    }
-
-    bool send_blocks(Context* ctx) {
-        ZoneScoped;
-        bool ret = true;
-        ret = enter_block(ctx, ctx->containers.front());
-
-        // abort:
-        //     return ret;
-        return ret;
-    }
-
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
@@ -96,7 +68,7 @@ namespace AB {
         /* First, process all the blocks that we
         * can find */
         CHECK_AND_RET(parse_blocks(ctx));
-        CHECK_AND_RET(send_blocks(ctx));
+        // CHECK_AND_RET(send_blocks(ctx));
 
     abort:
         return ret;
@@ -109,14 +81,11 @@ namespace AB {
         ctx.size = size;
         ctx.parser = parser;
 
-
         process_doc(&ctx);
 
         for (auto ptr : ctx.containers) {
             delete ptr;
         }
-
-        // std::cout << "Alloc left: " << Container::alloc_count << std::endl;
 
         FrameMark;
         return 0;
