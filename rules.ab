@@ -5,8 +5,6 @@
 and covers edge cases, like `part{_italic_})`
 - Strong: `*strong*` or `{*strong*}
 - Verbatime / code: `` `verbatim` ``
-- Sub: H~2~O
-- Sup: 10^-34^
 - Highlight: {=highlighted=}
 - Underline: {+underlined+}
 - Delete: {-deleted-}
