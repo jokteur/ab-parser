@@ -43,7 +43,6 @@ namespace AB {
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
-        ZoneScoped;
         ctx->offset_to_line_number.reserve(ctx->size + 1);
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
@@ -60,7 +59,6 @@ namespace AB {
     }
 
     bool process_doc(Context* ctx) {
-        ZoneScoped;
         bool ret = true;
 
         generate_line_number_data(ctx);
@@ -68,14 +66,12 @@ namespace AB {
         /* First, process all the blocks that we
         * can find */
         CHECK_AND_RET(parse_blocks(ctx));
-        // CHECK_AND_RET(send_blocks(ctx));
 
     abort:
         return ret;
     }
 
     bool parse(const CHAR* text, SIZE size, const Parser* parser) {
-        ZoneScoped;
         Context ctx;
         ctx.text = text;
         ctx.size = size;
@@ -87,7 +83,6 @@ namespace AB {
             delete ptr;
         }
 
-        FrameMark;
         return 0;
     }
 }

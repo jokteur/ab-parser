@@ -3,7 +3,6 @@
 
 namespace AB {
     Attributes parse_attributes(Context* ctx, OFFSET* off) {
-        ZoneScoped;
         Attributes attributes;
         bool start_collection = false;
         bool is_key = true;
@@ -56,7 +55,6 @@ namespace AB {
     }
 
     void skip_whitespace(Context* ctx, OFFSET* off) {
-        ZoneScoped;
         while ((SIZE)*off < ctx->size && CH(*off) != '\n') {
             if (!ISWHITESPACE(*off))
                 break;
@@ -65,7 +63,6 @@ namespace AB {
     }
 
     int count_marks(Context* ctx, OFFSET* off, char mark) {
-        ZoneScoped;
         int counter = 0;
         while (CH(*off) != '\n' && *off < (OFFSET)ctx->size) {
             if (CH(*off) == mark)
@@ -78,7 +75,6 @@ namespace AB {
     }
 
     int count_marks(Context* ctx, OFFSET off, char mark) {
-        ZoneScoped;
         int counter = 0;
         while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
             if (CH(off) == mark)
@@ -91,7 +87,6 @@ namespace AB {
     }
 
     bool advance_until(Context* ctx, OFFSET* off, std::string& acc, char ch) {
-        ZoneScoped;
         bool found_end_char = false;
         for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '\\')
@@ -106,7 +101,6 @@ namespace AB {
     }
 
     bool is_leaf_block(BLOCK_TYPE b_type) {
-        ZoneScoped;
         switch (b_type) {
         case BLOCK_CODE:
         case BLOCK_H:

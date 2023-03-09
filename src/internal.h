@@ -99,18 +99,6 @@ namespace AB {
             int last_non_empty_child_line = -1;
             int flag = 0;
             int indent = 0;
-
-            static int alloc_count;
-
-            void* operator new(std::size_t count) {
-                  auto ptr = malloc(count);
-                  TracyAlloc(ptr, count);
-                  return ptr;
-            }
-            void operator delete (void* ptr) noexcept {
-                  TracyFree(ptr);
-                  free(ptr);
-            }
       };
 
       /**************
