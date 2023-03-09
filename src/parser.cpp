@@ -38,8 +38,6 @@
 
 
 namespace AB {
-    int Container::alloc_count = 0;
-
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
