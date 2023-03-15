@@ -82,7 +82,7 @@ Here is a simple example. Suppose we have the following text: `_italic_`, which 
 
 Going back to the first example, we now use the following notation to illustrate ownership of markers: if there is `x`, it indicates a delimiter, if there is `_` it indicates content, and `.` indicates not in boundary. Here are the ownership for each block and span:
 
-```Markdown
+```
 - >> [abc
   >> def](example.com)
 
@@ -121,8 +121,8 @@ Here are some very rough non-scientific benchmarks, done with one core of a Ryze
 | Library  | Parsing speed      | Speed-up compared to previous line |
 | ---------| ------------------ |-------------------------------|
 | [Tree Sitter Markdown](https://github.com/MDeiml/tree-sitter-markdown/)  | 2.7 MB/s  | ~ |
-| AB-Parser  | 35 MB/s  | 14x |
-| [md4c](https://github.com/mity/md4c) | 200 MB/s | ~5.7x |
+| AB-Parser  | 85 MB/s  | 31x |
+| [md4c](https://github.com/mity/md4c) | 200 MB/s | ~2.4x |
 
 It is clear that this library can still benefit from some optimisation in the future.
 
