@@ -11,5 +11,5 @@
 
 // Implementation is inspired from http://github.com/mity/md4c
 namespace AB {
-    bool parse(const CHAR* text, SIZE size, const Parser* parser);
+    bool parse(const std::string* text, OFFSET start, OFFSET end, const Parser* parser);
 };

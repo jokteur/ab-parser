@@ -41,15 +41,15 @@ namespace AB {
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
-        ctx->offset_to_line_number.reserve(ctx->size + 1);
+        ctx->offset_to_line_number.reserve(ctx->end - ctx->start + 1);
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
         int line_counter = 0;
-        for (unsigned int i = 0;i < ctx->size;i++) {
+        for (unsigned int i = ctx->start;i < ctx->end;i++) {
             ctx->offset_to_line_number.push_back(line_counter);
-            if (ctx->text[i] == '\n') {
+            if ((*ctx->text)[i] == '\n') {
                 line_counter++;
-                if (i + 1 <= ctx->size)
+                if (i + 1 <= ctx->end - ctx->start)
                     ctx->line_number_begs.push_back(i + 1);
             }
         }
@@ -69,10 +69,11 @@ namespace AB {
         return ret;
     }
 
-    bool parse(const CHAR* text, SIZE size, const Parser* parser) {
+    bool parse(const std::string* text, OFFSET start, OFFSET end, const Parser* parser) {
         Context ctx;
         ctx.text = text;
-        ctx.size = size;
+        ctx.start = start;
+        ctx.end = end;
         ctx.parser = parser;
 
         process_doc(&ctx);

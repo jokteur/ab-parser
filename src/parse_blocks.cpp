@@ -78,12 +78,12 @@ namespace AB {
     static OFFSET find_next_line_off(Context* ctx, OFFSET off) {
         OFFSET current_line_number = ctx->offset_to_line_number[off];
         if (current_line_number + 1 >= ctx->line_number_begs.size())
-            return ctx->size;
+            return ctx->end;
         else
             return ctx->line_number_begs[current_line_number + 1] - 1;
     }
     bool check_for_whitespace_after(Context* ctx, OFFSET off) {
-        while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
+        while (CH(off) != '\n' && off < (OFFSET)ctx->end) {
             if (!ISWHITESPACE(off))
                 return false;
             off++;
@@ -132,7 +132,7 @@ namespace AB {
     }
 
     static inline void get_name_and_attributes(Context* ctx, OFFSET* off, std::string& name, Attributes& attributes) {
-        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+        for (;(SIZE)*off < ctx->end && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '{' && CH(*off + 1) == '{') {
                 *off += 2;
                 attributes = parse_attributes(ctx, off);
@@ -160,7 +160,7 @@ namespace AB {
 
 
         int count = 0;
-        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+        for (;(SIZE)*off < ctx->end && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '\\')
                 count = -1;
             else if (CH(*off) == marker)
@@ -435,7 +435,7 @@ namespace AB {
                     seg->b_bounds.beg = off + 1;
                     seg->indent = off + 2 - seg->start + whitespace_counter;
                     this_segment_end = off + 2;
-                    if (off + 1 < (OFFSET)ctx->size && CH(off + 1) == ' ')
+                    if (off + 1 < (OFFSET)ctx->end && CH(off + 1) == ' ')
                         seg->b_bounds.beg++;
 
                     seg->flags = LIST_OPENER;
@@ -987,7 +987,7 @@ namespace AB {
         bool ret = true;
 
 
-        OFFSET off = 0;
+        OFFSET off = ctx->start;
         SegmentInfo current_seg;
 
         // Add root container
@@ -1000,7 +1000,7 @@ namespace AB {
 
         ctx->last_free_mem_it = ctx->containers.begin() + 1;
 
-        while (off < (int)ctx->size) {
+        while (off < (int)ctx->end) {
             select_last_child_container(ctx);
             CHECK_AND_RET(analyse_segment(ctx, off, &off, &current_seg));
             CHECK_AND_RET(process_segment(ctx, &off, &current_seg));

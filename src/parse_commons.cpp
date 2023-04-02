@@ -9,7 +9,7 @@ namespace AB {
         bool is_complete = false;
         std::string acc;
         std::string prev_key;
-        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+        for (;(SIZE)*off < ctx->end && CH(*off) != '\n';(*off)++) {
             char ch = CH(*off);
             if (ch == '\\')
                 continue;
@@ -55,7 +55,7 @@ namespace AB {
     }
 
     void skip_whitespace(Context* ctx, OFFSET* off) {
-        while ((SIZE)*off < ctx->size && CH(*off) != '\n') {
+        while ((SIZE)*off < ctx->end && CH(*off) != '\n') {
             if (!ISWHITESPACE(*off))
                 break;
             (*off)++;
@@ -64,7 +64,7 @@ namespace AB {
 
     int count_marks(Context* ctx, OFFSET* off, char mark) {
         int counter = 0;
-        while (CH(*off) != '\n' && *off < (OFFSET)ctx->size) {
+        while (CH(*off) != '\n' && *off < (OFFSET)ctx->end) {
             if (CH(*off) == mark)
                 counter++;
             else
@@ -76,7 +76,7 @@ namespace AB {
 
     int count_marks(Context* ctx, OFFSET off, char mark) {
         int counter = 0;
-        while (CH(off) != '\n' && off < (OFFSET)ctx->size) {
+        while (CH(off) != '\n' && off < (OFFSET)ctx->end) {
             if (CH(off) == mark)
                 counter++;
             else
@@ -88,7 +88,7 @@ namespace AB {
 
     bool advance_until(Context* ctx, OFFSET* off, std::string& acc, char ch) {
         bool found_end_char = false;
-        for (;(SIZE)*off < ctx->size && CH(*off) != '\n';(*off)++) {
+        for (;(SIZE)*off < ctx->end && CH(*off) != '\n';(*off)++) {
             if (CH(*off) == '\\')
                 continue;
             acc += CH(*off);

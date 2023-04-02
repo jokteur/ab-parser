@@ -402,7 +402,7 @@ namespace AB {
 
     bool create_text(Context* ctx, std::vector<Boundaries>::iterator& b_it, std::vector<Boundaries>::iterator& b_end_it, TEXT_TYPE type, OFFSET start, OFFSET end) {
         bool ret = true;
-        if (start == end || end > (OFFSET)ctx->size)
+        if (start == end || end > ctx->end)
             return true;
         std::vector<Boundaries> bounds;
 

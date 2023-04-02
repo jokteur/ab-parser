@@ -12,8 +12,7 @@ namespace AB {
        *****************/
 
        /* Character accessors. */
-#define CH(off)                 (ctx->text[(off)])
-#define STR(off)                (ctx->text + (off))
+#define CH(off)                 ((*ctx->text)[(off)])
 
      /* Character classification.
       * Note we assume ASCII compatibility of code points < 128 here. */
@@ -53,9 +52,9 @@ namespace AB {
 
 
 #define NEXT_LOOP() off++;
-#define CHECK_WS_OR_END(off) ((off) >= (int)ctx->size || ((off) < (int)ctx->size && ISWHITESPACE((off))) || CH((off)) == '\n')
+#define CHECK_WS_OR_END(off) ((off) >= (int)ctx->end || ((off) < (int)ctx->end && ISWHITESPACE((off))) || CH((off)) == '\n')
 #define CHECK_WS_BEFORE(off) (seg->first_non_blank >= (off))
-#define CHECK_SPACE_AFTER(off) (off < (OFFSET)ctx->size && CH(off + 1) == ' ')
+#define CHECK_SPACE_AFTER(off) (off < (OFFSET)ctx->end && CH(off + 1) == ' ')
 
       /* Parsing functions*/
 #define CHECK_AND_RET(fct) \
@@ -109,8 +108,9 @@ namespace AB {
       */
       struct Context {
             /* Information given by the user */
-            const CHAR* text;
-            SIZE size;
+            const std::string* text;
+            OFFSET start;
+            OFFSET end;
             const Parser* parser;
 
             std::vector<Container*> containers;

@@ -192,7 +192,7 @@ ParserCheck::ParserCheck() {
 
 int ParserCheck::check_ast(const std::string& txt_input, const std::string& expected_ast, const std::string& expected_html, std::string& out_ast, std::string& out_html) {
     txt = txt_input;
-    AB::parse(txt_input.c_str(), (AB::SIZE)txt_input.length(), &parser);
+    AB::parse(&txt_input, 0, (AB::OFFSET)txt_input.length(), &parser);
     out_ast = ast.str();
     out_html = html.str();
 

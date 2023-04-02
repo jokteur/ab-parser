@@ -57,7 +57,7 @@ int main() {
             input += txt_input;
         }
         auto t1 = std::chrono::high_resolution_clock::now();
-        AB::parse(input.c_str(), (AB::SIZE)input.length(), &parser);
+        AB::parse(&input, 0, (AB::OFFSET)input.length(), &parser);
         auto t2 = std::chrono::high_resolution_clock::now();
         float timing = std::chrono::duration_cast<std::chrono::microseconds>(t2 - t1).count() / 1000.f;
 
