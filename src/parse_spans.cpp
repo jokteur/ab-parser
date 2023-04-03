@@ -283,7 +283,7 @@ namespace AB {
                  * to use content_boundaries */
                 OFFSET b_end = *off;
                 OFFSET b_post = jump_to;
-                int line_number = ctx->offset_to_line_number[b_end];
+                int line_number = ctx->offset_to_line_number[b_end - ctx->start];
                 if (line_number > tmp_mark.line_number) {
                     auto bound_it = content_bounds.begin();
                     while (bound_it != content_bounds.end()) {
@@ -347,7 +347,7 @@ namespace AB {
 
         if (found_match) {
             Mark tmp_mark(mark);
-            tmp_mark.line_number = ctx->offset_to_line_number[off];
+            tmp_mark.line_number = ctx->offset_to_line_number[off - ctx->start];
             tmp_mark.pre = off;
             if (mark.repeat) {
                 tmp_mark.count = mark_count;
@@ -391,7 +391,7 @@ namespace AB {
         }
         Mark autolink{ S_AUTOLINK, "http://", " ", false, SELECT_ALL };
         autolink.solved = true;
-        autolink.true_bounds.push_back(Boundaries{ ctx->offset_to_line_number[start], start, start, *off, *off });
+        autolink.true_bounds.push_back(Boundaries{ ctx->offset_to_line_number[start - ctx->start], start, start, *off, *off });
         mark_chain.push_back(autolink);
         auto ptr = &(mark_chain.back());
         autolink.is_closing = true;
@@ -412,7 +412,7 @@ namespace AB {
             start = b_it->beg;
         }
 
-        int last_line = ctx->offset_to_line_number[end];
+        int last_line = ctx->offset_to_line_number[end - ctx->start];
         int diff = last_line - b_it->line_number;
         if (diff > 0) {
             bounds.push_back({ b_it->line_number, start, start, b_it->end, b_it->end });

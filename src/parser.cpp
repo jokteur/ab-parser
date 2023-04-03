@@ -45,7 +45,12 @@ namespace AB {
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
         int line_counter = 0;
-        for (unsigned int i = ctx->start;i < ctx->end;i++) {
+        for (unsigned int i = 0;i < ctx->end;i++) {
+            if (i < ctx->start) {
+                if ((*ctx->text)[i] == '\n')
+                    line_counter++;
+                continue;
+            }
             ctx->offset_to_line_number.push_back(line_counter);
             if ((*ctx->text)[i] == '\n') {
                 line_counter++;
