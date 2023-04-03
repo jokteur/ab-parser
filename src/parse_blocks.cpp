@@ -76,7 +76,7 @@ namespace AB {
         return out;
     }
     static OFFSET find_next_line_off(Context* ctx, OFFSET off) {
-        OFFSET current_line_number = ctx->offset_to_line_number[off - ctx->start];
+        OFFSET current_line_number = ctx->offset_to_line_number[off];
         if (current_line_number + 1 >= ctx->line_number_begs.size())
             return ctx->end;
         else
@@ -211,7 +211,7 @@ namespace AB {
         *seg = SegmentInfo();
 
         seg->end = find_next_line_off(ctx, off);
-        seg->line_number = ctx->offset_to_line_number[off - ctx->start];
+        seg->line_number = ctx->offset_to_line_number[off];
         OFFSET this_segment_end = seg->end;
         Container* above_container = ctx->above_container;
 

@@ -85,7 +85,7 @@ namespace AB {
      * ====================== */
 
     struct Boundaries {
-        OFFSET line_number;
+        OFFSET line_number = 0;
         OFFSET pre = 0;
         OFFSET beg = 0;
         OFFSET end = 0;

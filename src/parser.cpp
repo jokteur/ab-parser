@@ -41,20 +41,20 @@ namespace AB {
     /* It should 100% be possible to avoid this memory
      * hungry function, but for now it is very convenient */
     void generate_line_number_data(Context* ctx) {
-        ctx->offset_to_line_number.reserve(ctx->end - ctx->start + 1);
+        ctx->offset_to_line_number.reserve(ctx->end + 1);
         /* The first seg always starts at 0 */
         ctx->line_number_begs.push_back(0);
         int line_counter = 0;
         for (unsigned int i = 0;i < ctx->end;i++) {
-            if (i < ctx->start) {
-                if ((*ctx->text)[i] == '\n')
-                    line_counter++;
-                continue;
-            }
+            // if (i + 1 < ctx->start) {
+            //     if ((*ctx->text)[i] == '\n')
+            //         line_counter++;
+            //     continue;
+            // }
             ctx->offset_to_line_number.push_back(line_counter);
             if ((*ctx->text)[i] == '\n') {
                 line_counter++;
-                if (i + 1 <= ctx->end - ctx->start)
+                if (i + 1 <= ctx->end)
                     ctx->line_number_begs.push_back(i + 1);
             }
         }
