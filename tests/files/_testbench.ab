@@ -1,9 +1,15 @@
-This is a [^footnote] and a citation.
+This document is indented as a lengthy benchmarking tool.
 
-[^footnote]: as many
-    paragraphs
+# Inline and basics
 
-    as needed
-
-[c:cite21]: Jon Smith & al., Review of things, 2023
-abc
+## Basic
+- Italic: _italic_ or {_italic_} (the second is more explicit 
+  and covers edge cases, like part{_italic_})
+- Strong: *strong* or {*strong*}
+- Verbatime / code: `` `verbatim` ``{{lang:AB}}
+  aewfwef
+  - qwdqwd
+    efwef
+- Highlight: {=highlighted=}
+- Underline: {+underlined+}
+- Delete: {-deleted-}

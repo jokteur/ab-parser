@@ -781,8 +781,10 @@ namespace AB {
                 add_container(ctx, BLOCK_OL, { seg->line_number,seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end }, seg, detail);
             }
         }
-        else
+        else {
+            above_parent->content_boundaries.push_back({ seg->line_number, seg->b_bounds.pre, seg->b_bounds.pre, seg->end, seg->end });
             ctx->current_container = above_parent;
+        }
 
         // We can now add our list item
         auto detail = std::make_shared<BlockLiDetail>();
