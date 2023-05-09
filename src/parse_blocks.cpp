@@ -96,12 +96,17 @@ namespace AB {
     ***************/
 
     static void select_last_child_container(Context* ctx) {
-        if (ctx->above_container != nullptr && !ctx->above_container->children.empty()) {
-            ctx->above_container = ctx->above_container->children.back();
-            if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
+        if (ctx->above_container != nullptr) {
+            if (!ctx->above_container->children.empty()) {
                 ctx->above_container = ctx->above_container->children.back();
+                if (ctx->above_container->b_type == BLOCK_UL || ctx->above_container->b_type == BLOCK_OL) {
+                    ctx->above_container = ctx->above_container->children.back();
+                }
+                ctx->current_container = ctx->above_container;
             }
-            ctx->current_container = ctx->above_container;
+            else {
+                ctx->above_container = nullptr;
+            }
         }
     }
 
@@ -846,7 +851,7 @@ namespace AB {
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
         int line_number_diff = 0;
-        if (above_container != nullptr) {
+        if (above_container != nullptr && above_container->b_type != BLOCK_DOC) {
             line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
             if (line_number_diff > 1 || above_container->flag != seg->flags || above_container->flag & DEFINITION_OPENER) {
                 close_current_container(ctx);
