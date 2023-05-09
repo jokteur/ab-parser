@@ -845,8 +845,9 @@ namespace AB {
 
         /* If the above_container doesn't match the current detected block, then we have to close
          * the current container. */
+        int line_number_diff = 0;
         if (above_container != nullptr) {
-            int line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
+            line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
             if (line_number_diff > 1 || above_container->flag != seg->flags || above_container->flag & DEFINITION_OPENER) {
                 close_current_container(ctx);
                 if (above_container->b_type == BLOCK_LI) {
@@ -861,7 +862,7 @@ namespace AB {
         }
 
         if (seg->blank_line) {
-            Container* parent = ctx->containers.front(); // By default, blank lines belong to ROOT
+            Container* parent = ctx->containers.back(); // By default, blank lines belong to ROOT
             /* Blank lines should always be commited to parent above container */
             if (above_container != nullptr) {
                 parent = select_parent(above_container);
@@ -875,7 +876,7 @@ namespace AB {
             above_container = nullptr;
         }
 
-#define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type)
+#define IS_BLOCK_CONTINUED(type) (above_container != nullptr && above_container->b_type == type && line_number_diff > 0)
 
         if (seg->flags & P_OPENER) {
             if (IS_BLOCK_CONTINUED(BLOCK_P)) {
