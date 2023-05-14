@@ -492,7 +492,7 @@ namespace AB {
                     seg->b_bounds.beg = seg->end;
                     seg->b_bounds.end = seg->end;
                     seg->b_bounds.post = seg->end;
-                    seg->indent = 4 + ctx->current_container->indent;
+                    seg->indent = 4 + whitespace_counter;
                     this_segment_end = seg->end;
                     seg->acc = "";
                     get_name_and_attributes(ctx, &off, seg->acc, seg->attributes);
@@ -656,6 +656,9 @@ namespace AB {
         container->indent = seg->indent;
         container->flag = seg->flags;
         container->attributes = seg->attributes;
+        if (block_type == BLOCK_EMPTY) {
+            container->closed = true;
+        }
         if (block_type != BLOCK_HIDDEN) {
             parent->last_non_empty_child_line = seg->line_number;
         }
@@ -853,7 +856,7 @@ namespace AB {
         int line_number_diff = 0;
         if (above_container != nullptr && above_container->b_type != BLOCK_DOC) {
             line_number_diff = seg->line_number - (above_container->content_boundaries.end() - 1)->line_number;
-            if (line_number_diff > 1 || above_container->flag != seg->flags || above_container->flag & DEFINITION_OPENER) {
+            if (line_number_diff > 1 || above_container->flag != seg->flags || above_container->flag & (DEFINITION_OPENER | DIV_OPENER)) {
                 close_current_container(ctx);
                 if (above_container->b_type == BLOCK_LI) {
                     close_current_container(ctx);
