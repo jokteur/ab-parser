@@ -43,7 +43,7 @@ As this parser is specifically designed for the *MathNotes* program, some featur
 
 The specific rules are written in [rules.ab](rules.ab).
 
-## The problem of the marker delimitation problem
+## The delimitation marker problem
 Let's say that we have the following Markdown example:
 
 ```Markdown
